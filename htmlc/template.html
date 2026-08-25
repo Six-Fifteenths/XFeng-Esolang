@@ -487,7 +487,7 @@ class XFengVM {
     if(c==='E'){
       if(this.P.name===this.data.mainName){
         this.status='halted'; this.result=this.L; this.ticks++;
-        return Object.assign({type:'halt', map:this.P.name, to:{x:this.pos.x,y:this.pos.y}}, base);
+        return Object.assign({type:'halt', map:this.P.name, to:{x:this.pos.x,y:this.pos.y}, dx:0, dy:0}, base);
       }
       if(this.stack.length===0){
         this._fail('InternalError', '函数 E 但调用栈为空'); return null;
@@ -497,7 +497,7 @@ class XFengVM {
       this.pos = {x:fr.x, y:fr.y};
       this.ticks++;
       return Object.assign({type:'return', map:this.P.name,
-        to:{x:this.pos.x,y:this.pos.y}}, base);
+        to:{x:this.pos.x,y:this.pos.y}, dx:0, dy:0}, base);
     }
 
     let dx, dy;
@@ -544,8 +544,8 @@ class XFengVM {
     }
     this.ticks++;
     const to={x:this.pos.x, y:this.pos.y};
-    if(kind==='halt') return Object.assign({type:'halt', map:this.P.name, to, result:this.L}, base);
-    if(kind==='return') return Object.assign({type:'return', map:this.P.name, to}, base);
+    if(kind==='halt') return Object.assign({type:'halt', map:this.P.name, to, dx, dy, result:this.L}, base);
+    if(kind==='return') return Object.assign({type:'return', map:this.P.name, to, dx, dy}, base);
     return Object.assign({type:'move', map:this.P.name, to, dx, dy, kind, glide, c2, callee}, base);
   }
   _fail(kind, msg){ this.status='error'; this.error={kind, msg}; }
@@ -556,6 +556,8 @@ const mapEls = {};
 let marker = null;
 let vm = null;
 let running = false, timer = null;
+let animTimer = null, animEpoch = 0;
+function clearAnim(){ if(animTimer){ clearTimeout(animTimer); animTimer=null; } }
 
 function speed(){
   const v = parseInt(document.getElementById('speed').value,10)||120;
@@ -619,6 +621,7 @@ function placeMarker(mapName, x, y, animate, dx, dy){
     e.wrap.appendChild(marker);
   }
   const dur = animate ? speed() : 0;
+  animEpoch++;
   marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
   marker.style.left = (x*CELL + CELL/2)+'px';
   marker.style.top  = (y*CELL + CELL/2)+'px';
@@ -703,29 +706,49 @@ function applyEvent(ev){
   if(!ev) return;
   const c0 = cellGlyph(ev.fromCell);
   if(ev.type==='move'){
-    placeMarker(ev.map, ev.to.x, ev.to.y, ev.glide, ev.dx, ev.dy);
     if(ev.kind==='call'){
-      // 进入函数：传送特效（起点+终点爆点，标记缩放闪光）
-      burstAt(ev.fromMap, ev.from.x, ev.from.y, 'tp');
-      burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
+      // 调用：① 跑步滑到调用点 → ② 传送进函数 S
+      const cp = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
+      placeMarker(ev.fromMap, cp.x, cp.y, true, ev.dx, ev.dy);
+      burstAt(ev.fromMap, cp.x, cp.y, 'tp');
       flashMarker();
+      const mark = animEpoch;
+      clearAnim();
+      animTimer = setTimeout(()=>{
+        if(animEpoch !== mark) return;   // 期间已有新移动则交给后续动画
+        placeMarker(ev.map, ev.to.x, ev.to.y, false, 0, 0);
+        burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
+        flashMarker();
+        animTimer = null;
+      }, Math.max(speed(), 60) + 50);
       logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
         `<span class="fn">调用 ${ev.callee}</span> → @${ev.map} (${ev.to.x},${ev.to.y})「S」`);
     } else {
+      placeMarker(ev.map, ev.to.x, ev.to.y, ev.glide, ev.dx, ev.dy);
       logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
         `<span class="hl">${DIR_NAME[ev.dx+','+ev.dy]||'?'}</span> → ` +
         `(${ev.to.x},${ev.to.y})「${cellGlyph(ev.c2)}」`);
     }
   } else if(ev.type==='return'){
-    // 到达函数 E 并返回：传送特效回调用点
-    placeMarker(ev.map, ev.to.x, ev.to.y, false, 0, 0);
-    burstAt(ev.fromMap, ev.from.x, ev.from.y, 'tp');
-    burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
+    // 返回：① 跑步滑到函数 E → ② 传送回调用点
+    const ep = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
+    placeMarker(ev.fromMap, ep.x, ep.y, true, ev.dx, ev.dy);
+    burstAt(ev.fromMap, ep.x, ep.y, 'tp');
     flashMarker();
+    const mark = animEpoch;
+    clearAnim();
+    animTimer = setTimeout(()=>{
+      if(animEpoch !== mark) return;
+      placeMarker(ev.map, ev.to.x, ev.to.y, false, 0, 0);
+      burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
+      flashMarker();
+      animTimer = null;
+    }, Math.max(speed(), 60) + 50);
     logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
       `<span class="hl">返回</span> @${ev.map} (${ev.to.x},${ev.to.y})`);
   } else if(ev.type==='halt'){
-    // 到达主程序 E 并终止：上岸庆祝爆点 + 标记闪光
+    // 停机：跑步到主程序 E，上岸庆祝
+    placeMarker(ev.map, ev.to.x, ev.to.y, true, ev.dx, ev.dy);
     burstAt(ev.map, ev.to.x, ev.to.y, 'halt');
     flashMarker();
     logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
@@ -806,6 +829,7 @@ function start(){
 }
 function pause(){
   clearInterval(timer);
+  clearAnim();
   if(running) setRunning(false);
 }
 function stepOnce(){ pause(); if(!ensureVM(false)) return; tickOnce(); }
