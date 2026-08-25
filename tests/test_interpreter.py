@@ -273,7 +273,7 @@ class TestFibonacci(unittest.TestCase):
 
 
 class TestNthPrime(unittest.TestCase):
-    """Runtime nth-prime algorithm; the 500-case check is in tools/."""
+    """Runtime nth-prime algorithm; exact checkpoints for n=1..15."""
 
     @classmethod
     def setUpClass(cls):

@@ -24,6 +24,8 @@ ide.html
 # 内部设计参考与验证过程记录（不公开）
 ref.md
 nth-prime-computation-record.json
+verification/
+tools/
 
 # 编辑器 / 系统
 .vscode/
