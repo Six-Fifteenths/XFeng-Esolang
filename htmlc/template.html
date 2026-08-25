@@ -110,6 +110,13 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 .row input[type=number]{width:78px;background:var(--surf2);border:1px solid var(--line);color:var(--text);
   border-radius:6px;padding:4px 6px;font-family:Consolas,monospace}
 .btns{display:flex;gap:8px}
+.ctrl-in{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.ci{display:flex;flex-direction:column;gap:2px}
+.ci span{font-size:10.5px;color:var(--dim);letter-spacing:.5px}
+.ci input{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--text);
+  border-radius:6px;padding:4px 6px;font-family:Consolas,monospace;font-size:16px}
+.ci input:focus{outline:none;border-color:var(--accent)}
+.ci input:disabled{opacity:.45;cursor:not-allowed}
 .btns button{flex:1;padding:7px 4px;border-radius:8px;border:1px solid var(--line);
   background:var(--surf2);color:var(--text);font-size:13px;cursor:pointer;font-weight:600}
 .btns button:hover{background:var(--hover)}
@@ -237,12 +244,23 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
   </div>
   <aside id="panel">
     <div class="card">
-      <h3>寄存器 · 巧乐兹 / 雪碧</h3>
+      <h3>控制台 · 寄存器 / 参数</h3>
       <div class="regs">
         <div class="reg l"><span class="lbl">L · 巧乐兹</span><span class="val" id="regL">0</span></div>
         <div class="reg r"><span class="lbl">R · 雪碧</span><span class="val" id="regR">0</span></div>
         <div class="reg"><span class="lbl">h · 文理</span><span class="val" id="regH">→</span></div>
         <div class="reg"><span class="lbl">tick</span><span class="val" id="regTick">0</span></div>
+      </div>
+      <div class="ctrl-in">
+        <label class="ci"><span>L<sub>in</sub></span><input id="inL" type="number" value="0"></label>
+        <label class="ci"><span>R<sub>in</sub></span><input id="inR" type="number" value="0"></label>
+        <label class="ci"><span>上限</span><input id="inMax" type="number" value="0" min="0"></label>
+        <label class="ci"><span>速度 ms</span><input id="speed" type="number" min="10" max="600" value="120"></label>
+      </div>
+      <div class="btns">
+        <button id="btnRun">▶ 运行</button>
+        <button id="btnStep">⏭ 单步</button>
+        <button id="btnReset">↺ 重置</button>
       </div>
     </div>
     <div class="card">
@@ -253,24 +271,6 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
     <div class="card">
       <h3>调用栈</h3>
       <ol id="stackList"></ol>
-    </div>
-    <div class="card">
-      <h3>控制</h3>
-      <div class="row">
-        <label>L<sub>in</sub></label><input id="inL" type="number" value="0">
-        <label>R<sub>in</sub></label><input id="inR" type="number" value="0">
-        <label>上限</label><input id="inMax" type="number" value="0" min="0">
-      </div>
-      <div class="row btns">
-        <button id="btnRun">▶ 运行</button>
-        <button id="btnStep">⏭ 单步</button>
-        <button id="btnReset">↺ 重置</button>
-      </div>
-      <div class="row">
-        <label>速度</label>
-        <input id="speed" type="range" min="10" max="600" value="120">
-        <span id="speedVal">120 ms</span>
-      </div>
     </div>
     <div class="card">
       <h3>执行日志</h3>
@@ -556,12 +556,14 @@ const mapEls = {};
 let marker = null;
 let vm = null;
 let running = false, timer = null;
-let animTimer = null, animEpoch = 0;
-function clearAnim(){ if(animTimer){ clearTimeout(animTimer); animTimer=null; } }
+let animTimer = null, teleport = null;
 
 function speed(){
-  const v = parseInt(document.getElementById('speed').value,10)||120;
-  document.getElementById('speedVal').textContent = v+' ms';
+  const el = document.getElementById('speed');
+  let v = parseInt(el.value,10);
+  if(isNaN(v)) v = 120;
+  v = Math.max(10, Math.min(600, v));
+  if(el.value !== String(v)) el.value = v;
   return v;
 }
 function readInputs(){
@@ -621,7 +623,6 @@ function placeMarker(mapName, x, y, animate, dx, dy){
     e.wrap.appendChild(marker);
   }
   const dur = animate ? speed() : 0;
-  animEpoch++;
   marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
   marker.style.left = (x*CELL + CELL/2)+'px';
   marker.style.top  = (y*CELL + CELL/2)+'px';
@@ -702,25 +703,48 @@ function flashMarker(){
   marker.classList.add('tp');
 }
 
+/* ===== 传送动画调度 ===== */
+// 平移进入调用点/E 后，等滑动结束再播放传送（消失 → 出现在目标）
+function scheduleTeleport(t){
+  if(animTimer) clearTimeout(animTimer);
+  teleport = t;
+  animTimer = setTimeout(()=>{ animTimer=null; finishTeleport(); },
+    Math.max(speed(), 60) + 60);
+}
+// 立即完成待处理的传送：新 tick / 暂停 / 重置前调用，保证不跳格、不残留
+function finishTeleport(){
+  if(animTimer){ clearTimeout(animTimer); animTimer=null; }
+  if(!teleport) return;
+  const t = teleport;
+  teleport = null;
+  if(t.type==='halt'){
+    // 平移入 E：庆祝爆点，等滑动播完再让 marker 消失
+    burstAt(t.srcMap, t.src.x, t.src.y, 'halt');
+    flashMarker();
+    const vmRef = vm;
+    setTimeout(()=>{
+      if(marker && vm===vmRef) marker.style.display='none';
+    }, Math.max(speed(), 60) + 80);
+    return;
+  }
+  // 调用 / 返回：源点爆点 + marker 消失 → 瞬移目标 + 目标爆点 + marker 出现
+  burstAt(t.srcMap, t.src.x, t.src.y, 'tp');
+  flashMarker();
+  placeMarker(t.dstMap, t.dst.x, t.dst.y, false, 0, 0);
+  burstAt(t.dstMap, t.dst.x, t.dst.y, 'tp');
+  flashMarker();
+}
+
 function applyEvent(ev){
   if(!ev) return;
   const c0 = cellGlyph(ev.fromCell);
   if(ev.type==='move'){
     if(ev.kind==='call'){
-      // 调用：① 跑步滑到调用点 → ② 传送进函数 S
+      // 调用：① 平移进入调用点（无特效）→ ② 到达后传送进函数 S
       const cp = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
       placeMarker(ev.fromMap, cp.x, cp.y, true, ev.dx, ev.dy);
-      burstAt(ev.fromMap, cp.x, cp.y, 'tp');
-      flashMarker();
-      const mark = animEpoch;
-      clearAnim();
-      animTimer = setTimeout(()=>{
-        if(animEpoch !== mark) return;   // 期间已有新移动则交给后续动画
-        placeMarker(ev.map, ev.to.x, ev.to.y, false, 0, 0);
-        burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
-        flashMarker();
-        animTimer = null;
-      }, Math.max(speed(), 60) + 50);
+      scheduleTeleport({type:'call', srcMap: ev.fromMap, src: cp,
+        dstMap: ev.map, dst: ev.to});
       logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
         `<span class="fn">调用 ${ev.callee}</span> → @${ev.map} (${ev.to.x},${ev.to.y})「S」`);
     } else {
@@ -730,27 +754,17 @@ function applyEvent(ev){
         `(${ev.to.x},${ev.to.y})「${cellGlyph(ev.c2)}」`);
     }
   } else if(ev.type==='return'){
-    // 返回：① 跑步滑到函数 E → ② 传送回调用点
+    // 返回：① 平移进入函数 E（无特效）→ ② 传送回调用点
     const ep = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
     placeMarker(ev.fromMap, ep.x, ep.y, true, ev.dx, ev.dy);
-    burstAt(ev.fromMap, ep.x, ep.y, 'tp');
-    flashMarker();
-    const mark = animEpoch;
-    clearAnim();
-    animTimer = setTimeout(()=>{
-      if(animEpoch !== mark) return;
-      placeMarker(ev.map, ev.to.x, ev.to.y, false, 0, 0);
-      burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
-      flashMarker();
-      animTimer = null;
-    }, Math.max(speed(), 60) + 50);
+    scheduleTeleport({type:'return', srcMap: ev.fromMap, src: ep,
+      dstMap: ev.map, dst: ev.to});
     logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
       `<span class="hl">返回</span> @${ev.map} (${ev.to.x},${ev.to.y})`);
   } else if(ev.type==='halt'){
-    // 停机：跑步到主程序 E，上岸庆祝
+    // 停机：平移入 E → 上岸庆祝 → marker 消失
     placeMarker(ev.map, ev.to.x, ev.to.y, true, ev.dx, ev.dy);
-    burstAt(ev.map, ev.to.x, ev.to.y, 'halt');
-    flashMarker();
+    scheduleTeleport({type:'halt', srcMap: ev.map, src: ev.to});
     logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
       `<span class="hl">HALT</span> · 输出 L=${ev.result}`,'halt');
   }
@@ -776,6 +790,8 @@ function ensureVM(force){
   if(!res.ok){ showParseError(res.error); return false; }
   clearParseError();
   buildMaps(res.program);
+  if(animTimer){ clearTimeout(animTimer); animTimer=null; }
+  teleport = null;
   vm = new XFengVM(res.program, L, R, max);
   vm.srcSig = src; vm.builtL=L; vm.builtR=R; vm.builtMax=max;
   clearLog();
@@ -806,15 +822,19 @@ function loadFile(file){
   };
   rd.readAsText(file, 'utf-8');
 }
+function lockInputs(on){
+  ['inL','inR','inMax','speed'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.disabled=on;
+  });
+}
 function setRunning(v){
   running=v;
   document.getElementById('btnRun').textContent = v ? '⏸ 暂停' : '▶ 运行';
-  document.getElementById('inL').disabled=v;
-  document.getElementById('inR').disabled=v;
-  document.getElementById('inMax').disabled=v;
+  if(v) lockInputs(true);   // 运行中锁定输入；暂停保持锁定，仅重置可解锁
   updateAll();
 }
 function tickOnce(){
+  finishTeleport();   // 先完成未竟传送，保证返回回调用点本身、不跳格
   if(!vm || vm.status!=='idle'){ pause(); return; }
   const ev = vm.step();
   applyEvent(ev);
@@ -829,11 +849,11 @@ function start(){
 }
 function pause(){
   clearInterval(timer);
-  clearAnim();
+  finishTeleport();
   if(running) setRunning(false);
 }
-function stepOnce(){ pause(); if(!ensureVM(false)) return; tickOnce(); }
-function reset(){ pause(); ensureVM(true); }
+function stepOnce(){ pause(); if(!ensureVM(false)) return; lockInputs(true); tickOnce(); }
+function reset(){ pause(); lockInputs(false); ensureVM(true); }
 
 document.getElementById('btnOpen').addEventListener('click', ()=>
   document.getElementById('fileInput').click());
@@ -859,7 +879,6 @@ editor.addEventListener('input', ()=>{
 document.getElementById('btnRun').addEventListener('click', ()=>{ running ? pause() : start(); });
 document.getElementById('btnStep').addEventListener('click', stepOnce);
 document.getElementById('btnReset').addEventListener('click', reset);
-document.getElementById('speed').addEventListener('input', speed);
 document.addEventListener('keydown', (e)=>{
   if(e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA' || e.target.tagName==='SELECT') return;
   if(e.code==='Space'){ e.preventDefault(); running ? pause() : stepOnce(); }
