@@ -10,8 +10,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![CI](https://img.shields.io/github/actions/workflow/status/YOUR_GITHUB_USER/YOUR_REPO/ci.yml?label=CI)](.github/workflows/ci.yml)
-<!-- ↑ 上传到 GitHub 后，把 YOUR_GITHUB_USER / YOUR_REPO 替换成你的仓库地址 -->
+[![CI](https://img.shields.io/github/actions/workflow/status/Six-Fifteenths/XFeng-Esolang/ci.yml?label=CI)](.github/workflows/ci.yml)
 
 ---
 
