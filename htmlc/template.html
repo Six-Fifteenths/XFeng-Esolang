@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XFeng · __PROGNAME__</title>
+<style>
+:root{
+  /* 主题 · 练起来：巧克力褐底 × 雪碧柠檬绿 × 巧乐兹焦糖（原创配色，不侵权） */
+  --bg:#201611; --panel:#2b1f17; --card:#33251b; --line:#4e3a2a;
+  --text:#fbf2e1; --dim:#c2b093;
+  --accent:#b6e825; --ok:#ffd166; --err:#ff6b57;
+  --surf:#180f0a; --surf2:#251a12; --hover:#3a2b1e;
+  /* 寄存器品牌色 */
+  --cL:#e8a15e; --cR:#a8e83a; --cH:#3fd8c9;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;
+  background:linear-gradient(90deg,#201611,#33251b);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:5}
+.brand{font-size:18px;font-weight:700;letter-spacing:.5px}
+.brand .v{color:var(--accent);font-size:12px;margin-left:6px;font-weight:400}
+#progTitle{color:var(--dim);font-family:Consolas,monospace}
+.status{margin-left:auto;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:600;
+  border:1px solid transparent;white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+.status.ready{background:var(--surf2);color:var(--dim);border-color:var(--line)}
+.status.running{background:#223019;color:var(--accent);border-color:#3c541f}
+.status.halted{background:#2e2a12;color:var(--ok);border-color:#544a1a}
+.status.error{background:#3a1c16;color:var(--err);border-color:#5c2a1e}
+main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
+#mapsArea{flex:1;display:flex;flex-wrap:wrap;gap:14px;align-content:flex-start;min-width:0}
+#panel{width:330px;flex:none;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card h3{margin:0 0 8px;font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+#left{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
+.etool{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.etool button{padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surf2);
+  color:var(--text);font-size:12.5px;cursor:pointer}
+.etool button:hover{background:var(--hover)}
+.etool select{background:var(--surf2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:5px 8px;font-size:12.5px;max-width:240px}
+#parseStatus{font-size:12px;color:var(--dim);font-family:Consolas,monospace;margin-left:auto}
+#editor{width:100%;min-height:175px;background:var(--surf);color:var(--text);
+  border:1px solid var(--line);border-radius:8px;padding:10px;
+  font-family:Consolas,monospace;font-size:13px;line-height:1.45;resize:vertical;white-space:pre;tab-size:4}
+#editor:focus{outline:none;border-color:var(--accent)}
+.parse-error{background:#3a1c16;border:1px solid var(--err);color:#ffc4b8;border-radius:8px;
+  padding:8px 10px;margin-top:8px;font-family:Consolas,monospace;font-size:12.5px;white-space:pre-wrap}
+.hint{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.6}
+.mapcard{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surf);
+  opacity:.45;transition:opacity .25s, border-color .25s}
+.mapcard.active{opacity:1;border-color:var(--accent);
+  box-shadow:0 0 0 1px rgba(184,232,37,.35),0 4px 18px rgba(0,0,0,.5)}
+.maptitle{padding:6px 10px;font-family:Consolas,monospace;font-size:13px;color:var(--dim);
+  border-bottom:1px solid var(--line);background:var(--surf2)}
+.mapcard.active .maptitle{color:var(--accent)}
+.mapwrap{position:relative;background:var(--surf);overflow:hidden}
+.maprow{display:flex}
+.cell{width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  font-family:Consolas,monospace;font-size:18px;font-weight:700;
+  background:#2a2018;border-right:1px solid #1a120d;border-bottom:1px solid #1a120d;
+  user-select:none}
+.cell.dot{background:#2c2219}
+.cell.sp{background:#1a120d}
+.cell.s{background:#1d4a2c;color:#8ef0a8}
+.cell.e{background:#4a2518;color:#ffb08a}
+.cell.lp,.cell.lm{color:var(--cL)}
+.cell.rp,.cell.rm{color:var(--cR)}
+.cell.lt,.cell.gt{color:var(--cH)}
+.cell.up{color:var(--ok)}
+.cell.q,.cell.bang{color:#d0a8ff}
+.cell.fn{color:#ff8ac2}
+.cell.cur{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);z-index:1}
+.marker{position:absolute;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;line-height:1;
+  z-index:3;pointer-events:none;filter:drop-shadow(0 3px 5px rgba(0,0,0,.55))}
+.marker .runwrap{display:inline-block}
+.marker .run{display:inline-block;font-size:26px;animation:bob .35s ease-in-out infinite alternate}
+.marker .ar{font-size:11px;color:var(--ok);line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.8);margin-top:1px}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+.marker.tp{animation:tpflash .55s ease}
+@keyframes tpflash{
+  0%{transform:translate(-50%,-50%) scale(1);opacity:1}
+  35%{transform:translate(-50%,-50%) scale(.15);opacity:.2}
+  65%{transform:translate(-50%,-50%) scale(.15);opacity:.2}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+}
+.burst{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;pointer-events:none;z-index:4}
+.burst.tp{border:3px solid var(--ok);animation:tping .6s ease-out forwards}
+.burst.halt{border:4px solid var(--ok);box-shadow:0 0 18px rgba(255,209,102,.85);animation:halting .9s ease-out forwards}
+@keyframes tping{0%{transform:translate(-50%,-50%) scale(.3);opacity:1}100%{transform:translate(-50%,-50%) scale(2.4);opacity:0}}
+@keyframes halting{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}100%{transform:translate(-50%,-50%) scale(4);opacity:0}}
+.regs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.reg{background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+  display:flex;align-items:baseline;justify-content:space-between}
+.reg .lbl{color:var(--dim);font-size:12px}
+.reg .val{font-family:Consolas,monospace;font-size:22px;font-weight:700}
+.reg.l .lbl,.reg.l .val{color:var(--cL)}
+.reg.r .lbl,.reg.r .val{color:var(--cR)}
+#regH .val{font-size:20px}
+#posInfo,#nextInfo{font-family:Consolas,monospace;font-size:13px;margin:2px 0;color:var(--text)}
+#posInfo .map{color:var(--accent)}
+#stackList{margin:0;padding-left:20px;max-height:130px;overflow:auto;
+  font-family:Consolas,monospace;font-size:12.5px}
+#stackList li::marker{color:var(--dim)}
+#stackList .empty{color:var(--dim);list-style:none;margin-left:-16px}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.row label{font-size:12px;color:var(--dim);white-space:nowrap}
+.row input[type=number]{width:78px;background:var(--surf2);border:1px solid var(--line);color:var(--text);
+  border-radius:6px;padding:4px 6px;font-family:Consolas,monospace}
+.btns{display:flex;gap:8px}
+.btns button{flex:1;padding:7px 4px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surf2);color:var(--text);font-size:13px;cursor:pointer;font-weight:600}
+.btns button:hover{background:var(--hover)}
+#btnRun{background:linear-gradient(135deg,#c6f04a,#8fce1a);border-color:transparent;color:#22290a}
+#btnRun:hover{background:linear-gradient(135deg,#d2f65c,#9fdd22)}
+.row input[type=range]{flex:1}
+#speedVal{color:var(--dim);font-size:12px;font-family:Consolas,monospace;width:52px}
+#logList{max-height:190px;overflow:auto;font-family:Consolas,monospace;font-size:11.5px;line-height:1.55}
+#logList div{white-space:pre;color:var(--dim)}
+#logList div .hl{color:var(--accent)}
+#logList div .fn{color:#ff8ac2}
+#logList div.halt{color:var(--ok)}
+#logList div.err{color:var(--err)}
+.legend{display:flex;flex-direction:column;gap:9px;font-size:12px;color:var(--dim)}
+.lg-grp{display:flex;flex-wrap:wrap;gap:3px 12px;row-gap:5px}
+.lg-h{width:100%;font-size:10.5px;letter-spacing:1.5px;color:var(--dim);opacity:.85;text-transform:uppercase;margin-bottom:1px}
+.legend b{font-family:Consolas,monospace;font-weight:700;min-width:15px;display:inline-block;text-align:center}
+.legend b.c-s{color:#8ef0a8}.legend b.c-e{color:#ffb08a}.legend b.c-dot{color:var(--text)}
+.legend b.c-sp{color:var(--dim)}.legend b.c-up{color:var(--ok)}
+.legend b.c-lt,.legend b.c-gt{color:var(--cH)}
+.legend b.c-lp,.legend b.c-lm{color:var(--cL)}
+.legend b.c-rp,.legend b.c-rm{color:var(--cR)}
+.legend b.c-q,.legend b.c-bang{color:#d0a8ff}.legend b.c-fn{color:#ff8ac2}
+.tribute{text-align:center;color:var(--dim);font-size:12.5px;padding:2px 16px 22px;letter-spacing:.5px}
+.tribute .song{color:var(--ok);font-weight:600}
+.hidden{display:none!important}
+/* ===== 弹窗教程（onboarding） ===== */
+.tut-overlay{position:fixed;inset:0;background:rgba(18,11,6,.7);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;z-index:100;padding:18px}
+.tut-modal{position:relative;width:660px;max-width:100%;max-height:92vh;overflow:auto;
+  background:linear-gradient(180deg,#fdf6e7,#f6ead2);color:#3a2a1a;
+  border-radius:18px;border:1px solid rgba(184,232,37,.55);
+  box-shadow:0 26px 80px rgba(0,0,0,.6);padding:26px 30px 22px}
+.tut-x{position:absolute;top:12px;right:14px;border:none;background:transparent;
+  color:#8a6b45;font-size:18px;cursor:pointer;padding:6px;line-height:1}
+.tut-x:hover{color:#3a2a1a}
+.tut-kicker{font-size:11px;font-weight:700;letter-spacing:2px;color:#8fce1a;text-transform:uppercase}
+.tut-head h2{margin:6px 0 6px;font-size:26px;color:#2b1f17}
+.tut-sub{margin:0 0 16px;color:#6b5238;font-size:13.5px;line-height:1.6}
+.tut-steps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tut-step{display:flex;gap:11px;background:#fffaf0;border:1px solid #e7d6b8;border-radius:12px;padding:11px 12px}
+.tut-n{flex:none;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#c6f04a,#8fce1a);
+  color:#22290a;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+.tut-b{font-size:12.5px;line-height:1.65;color:#4a3a28}
+.tut-b b{color:#2b1f17}
+.tut-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap}
+.tut-skip{font-size:12.5px;color:#6b5238;display:flex;align-items:center;gap:6px;cursor:pointer}
+.tut-skip input{accent-color:#8fce1a;width:15px;height:15px}
+.tut-foot .btn-ghost{background:transparent;border:1px solid #c9b084;color:#6b5238;
+  border-radius:9px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600}
+.tut-foot .btn-ghost:hover{background:#f1e2c4}
+.tut-foot .btn-primary{background:linear-gradient(135deg,#c6f04a,#8fce1a);border:none;color:#22290a;
+  border-radius:9px;padding:9px 20px;font-size:13.5px;cursor:pointer;font-weight:800}
+.tut-foot .btn-primary:hover{background:linear-gradient(135deg,#d2f65c,#9fdd22)}
+@media(max-width:720px){.tut-steps{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="tutOverlay" class="tut-overlay">
+  <div class="tut-modal" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
+    <button id="tutClose" class="tut-x" type="button" aria-label="关闭教程">✕</button>
+    <div class="tut-head">
+      <div class="tut-kicker">XFeng 1.0 · 张雪峰跑步</div>
+      <h2 id="tutTitle">欢迎来练！</h2>
+      <p class="tut-sub">这是一门「张雪峰跑步」式的二维空间控制流 Esolang：<br>
+      把地图当跑道，张老师逐格奔跑、加减口袋里的巧乐兹与雪碧，跑到终点输出答案。</p>
+    </div>
+    <div class="tut-steps">
+      <div class="tut-step">
+        <div class="tut-n">1</div>
+        <div class="tut-b"><b>一个 tick = 一步</b><br>
+          当前格决定方向 → 移动一格 → 执行到达格。每张图以 <b class="c-s">S</b> 起步，<b class="c-e">E</b> 收尾。</div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-n">2</div>
+        <div class="tut-b"><b>口袋就是寄存器</b><br>
+          <b class="c-lp">(</b>/<b class="c-lm">[</b> 加减 L（巧乐兹），<b class="c-rp">)</b>/<b class="c-rm">]</b> 加减 R（雪碧）。</div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-n">3</div>
+        <div class="tut-b"><b>门会查口袋</b><br>
+          <b class="c-q">?</b> 查 L：L=0 → 下沉，否则直行；<b class="c-bang">!</b> 查 R 同理。空格 ␣ 自由落体，<b class="c-up">^</b> 爬梯。</div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-n">4</div>
+        <div class="tut-b"><b>函数 = 子地图</b><br>
+          地图上的字母是调用点：进入同名函数，从它的 <b class="c-s">S</b> 跑到 <b class="c-e">E</b> 自动返回。</div>
+      </div>
+    </div>
+    <div class="tut-foot">
+      <label class="tut-skip"><input type="checkbox" id="tutNoMore"> 下次不再自动弹出</label>
+      <div>
+        <button id="tutLater" type="button" class="btn-ghost">稍后再说</button>
+        <button id="tutGo" type="button" class="btn-primary">🚀 开始练起来</button>
+      </div>
+    </div>
+  </div>
+</div>
+<header>
+  <div class="brand">XFeng<span class="v">1.0 · 张雪峰跑步 · 练起来</span></div>
+  <div id="progTitle">__PROGNAME__</div>
+  <div id="statusBar" class="status ready">就绪</div>
+</header>
+
+<main>
+  <div id="left">
+    <section class="card" id="editorCard">
+      <h3>编辑器 · XFeng 源码</h3>
+      <div class="etool">
+        <button id="btnOpen" type="button">📂 打开 .xfeng</button>
+        <input type="file" id="fileInput" accept=".xfeng,.txt,text/plain" hidden>
+        <select id="exampleSelect" title="内置示例"></select>
+        <span id="parseStatus"></span>
+      </div>
+      <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off"
+        placeholder="在这里粘贴 / 编写 XFeng 代码，或点击「📂 打开 .xfeng」选择文件…&#10;&#10;提示：也可直接把 .xfeng 文件拖进本框。"></textarea>
+      <div id="parseError" class="parse-error hidden"></div>
+      <div class="hint">
+        每个 tick：<b>当前格决定方向 → 移动一格 → 执行到达格</b>。
+        左门 <b>?</b> / 右门 <b>!</b>：巧乐兹（L）/ 雪碧（R）归零 → 下沉，否则继续冲。
+        <br>张老师：<b>别愣着，练起来！</b>
+      </div>
+    </section>
+    <section id="mapsArea"></section>
+  </div>
+  <aside id="panel">
+    <div class="card">
+      <h3>寄存器 · 巧乐兹 / 雪碧</h3>
+      <div class="regs">
+        <div class="reg l"><span class="lbl">L · 巧乐兹</span><span class="val" id="regL">0</span></div>
+        <div class="reg r"><span class="lbl">R · 雪碧</span><span class="val" id="regR">0</span></div>
+        <div class="reg"><span class="lbl">h · 文理</span><span class="val" id="regH">→</span></div>
+        <div class="reg"><span class="lbl">tick</span><span class="val" id="regTick">0</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>当前位置</h3>
+      <div id="posInfo">—</div>
+      <div id="nextInfo">—</div>
+    </div>
+    <div class="card">
+      <h3>调用栈</h3>
+      <ol id="stackList"></ol>
+    </div>
+    <div class="card">
+      <h3>控制</h3>
+      <div class="row">
+        <label>L<sub>in</sub></label><input id="inL" type="number" value="0">
+        <label>R<sub>in</sub></label><input id="inR" type="number" value="0">
+        <label>上限</label><input id="inMax" type="number" value="0" min="0">
+      </div>
+      <div class="row btns">
+        <button id="btnRun">▶ 运行</button>
+        <button id="btnStep">⏭ 单步</button>
+        <button id="btnReset">↺ 重置</button>
+      </div>
+      <div class="row">
+        <label>速度</label>
+        <input id="speed" type="range" min="10" max="600" value="120">
+        <span id="speedVal">120 ms</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>执行日志</h3>
+      <div id="logList"></div>
+    </div>
+    <div class="card">
+      <h3>图例 · 练起来</h3>
+      <div class="legend">
+        <div class="lg-grp">
+          <div class="lg-h">结构</div>
+          <span><b class="c-s">S</b> 出生点（无执行）</span>
+          <span><b class="c-e">E</b> 终点（主程序停机 / 函数返回）</span>
+          <span><b class="c-dot">.</b> 平地（沿 h 直行）</span>
+        </div>
+        <div class="lg-grp">
+          <div class="lg-h">移动</div>
+          <span><b class="c-sp">␣</b> 空格 · 自由落体 ↓</span>
+          <span><b class="c-up">^</b> 梯子 · 向上爬 ↑</span>
+          <span><b class="c-lt">&lt;</b> 左转 · h=−1</span>
+          <span><b class="c-gt">&gt;</b> 右转 · h=+1</span>
+        </div>
+        <div class="lg-grp">
+          <div class="lg-h">寄存器 · 巧乐兹 L / 雪碧 R</div>
+          <span><b class="c-lp">(</b> L+1</span>
+          <span><b class="c-lm">[</b> L−1</span>
+          <span><b class="c-rp">)</b> R+1</span>
+          <span><b class="c-rm">]</b> R−1</span>
+        </div>
+        <div class="lg-grp">
+          <div class="lg-h">条件门</div>
+          <span><b class="c-q">?</b> L=0 → 下沉，否则直行</span>
+          <span><b class="c-bang">!</b> R=0 → 下沉，否则直行</span>
+        </div>
+        <div class="lg-grp">
+          <div class="lg-h">函数</div>
+          <span><b class="c-fn">函</b> 调用点 · 进入同名函数</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer class="tribute">致敬张雪峰老师 —— <span class="song">张雪峰老师，我还记得你</span></footer>
+
+<script>
+"use strict";
+const PRELOAD = __SOURCE_JSON__;
+const TITLE = __TITLE_JSON__;
+
+/* ================= 常量与工具 ================= */
+const CELL = 36;
+const CELL_DESC = {
+  'S': ['出生点', '无执行；D=(h,0)'],
+  'E': ['终点', '主程序 HALT(L)；函数 RETURN'],
+  '.': ['平地', '无执行；D=(h,0)'],
+  ' ': ['空格', '无执行；D=(0,1) 自由落体'],
+  '(': ['左加', 'L += 1；D=(h,0)'],
+  '[': ['左减', 'L -= 1；D=(h,0)'],
+  ')': ['右加', 'R += 1；D=(h,0)'],
+  ']': ['右减', 'R -= 1；D=(h,0)'],
+  '<': ['左转', 'h = -1；D=(h,0)'],
+  '>': ['右转', 'h = +1；D=(h,0)'],
+  '^': ['梯子', '无执行；D=(0,-1)'],
+  '?': ['左门', 'L=0 → (0,1)；否则 (h,0)'],
+  '!': ['右门', 'R=0 → (0,1)；否则 (h,0)'],
+};
+const DIR_NAME = {'1,0':'右','-1,0':'左','0,1':'下','0,-1':'上'};
+const DIR_GLYPH = {'1,0':'→','-1,0':'←','0,1':'↓','0,-1':'↑'};
+function glyph(d){ return d==null ? '●' : (DIR_GLYPH[d[0]+','+d[1]] || '·'); }
+function cellGlyph(ch){ return ch===' ' ? '␣' : ch; }
+function clsFor(ch){
+  if(ch==='S')return 's'; if(ch==='E')return 'e'; if(ch==='.')return 'dot';
+  if(ch==='('||ch==='[')return 'lp'; if(ch===')'||ch===']')return 'rp';
+  if(ch==='<')return 'lt'; if(ch==='>')return 'gt'; if(ch==='^')return 'up';
+  if(ch==='?')return 'q'; if(ch==='!')return 'bang'; if(ch===' ')return 'sp'; return 'fn';
+}
+
+/* ================= 解析器（移植自 xfeng/parser.py） ================= */
+const RESERVED = new Set("SE.()[]<>^?!".split(""));
+const LEGAL = new Set([...RESERVED, " "]);
+const FORBIDDEN = new Set([...RESERVED, "@", "#"]);
+function isFnChar(ch){
+  if(ch.length !== 1) return false;
+  if(FORBIDDEN.has(ch)) return false;
+  if(/\s/.test(ch)) return false;
+  return true;
+}
+function perr(kind, message, line){
+  return {ok:false, error:{kind, message, line: line || null}};
+}
+function splitLines(s){
+  // 与 Python str.splitlines() 一致：末尾单个换行不产生空行；空串 → 空列表
+  if(s === '') return [];
+  const lines = s.split(/\r\n|\r|\n/);
+  if(lines[lines.length-1] === '') lines.pop();
+  return lines;
+}
+function parseSource(text){
+  if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const lines = splitLines(text);
+  const segments = [];
+  let cur = null;
+  const seen = new Set();
+  for(let i=0;i<lines.length;i++){
+    const line = lines[i];
+    if(line.startsWith('#')) continue;
+    if(line.startsWith('@')){
+      const name = line.slice(1);
+      if(name !== 'main' && !isFnChar(name)){
+        return perr('InvalidProgram',
+          `非法声明：@${name}（函数名必须是单个字符，且不能是保留字符/空白/@/#）`, i+1);
+      }
+      if(seen.has(name)) return perr('InvalidProgram', `重复的声明：@${name}`, i+1);
+      seen.add(name);
+      cur = {name, rows:[]};
+      segments.push(cur);
+    } else {
+      if(!cur) return perr('InvalidProgram', '地图内容出现在任何声明之前', i+1);
+      cur.rows.push(line);
+    }
+  }
+  const functions = [];
+  let main = null;
+  for(const seg of segments){
+    const {name, rows} = seg;
+    if(rows.length === 0) return perr('InvalidProgram', `地图为空：@${name}（每个程序段至少有一行地图）`);
+    const width = rows[0].length;
+    if(width === 0) return perr('InvalidProgram', `地图宽度为 0：@${name}（空行不是合法的地图行）`);
+    for(const r of rows){
+      if(r.length !== width) return perr('InvalidProgram', `地图非矩形：@${name}（各行长度不一致）`);
+    }
+    let sc=0, ec=0, spawn=null, exit=null;
+    for(let y=0;y<rows.length;y++){
+      const r = rows[y];
+      for(let x=0;x<r.length;x++){
+        const ch = r[x];
+        if(!LEGAL.has(ch)){
+          if(seen.has(ch)){ /* 函数调用点 */ }
+          else if(isFnChar(ch)) return perr('UndefinedFunction',
+            `地图 @${name} 的 (${x},${y}) 出现未声明的函数名 ${ch}`);
+          else return perr('InvalidProgram', `地图 @${name} 的 (${x},${y}) 出现非法字符 ${ch}`);
+        }
+        if(ch==='S'){ sc++; spawn=[x,y]; }
+        else if(ch==='E'){ ec++; exit=[x,y]; }
+      }
+    }
+    if(sc!==1) return perr('InvalidProgram', `@${name} 必须有且仅有一个 S（实际 ${sc} 个）`);
+    if(ec!==1) return perr('InvalidProgram', `@${name} 必须有且仅有一个 E（实际 ${ec} 个）`);
+    const map = {name, rows, width, height:rows.length, spawn, exit};
+    functions.push(map);
+    if(name==='main') main = map;
+  }
+  if(!main) return perr('InvalidProgram', '缺少 @main 声明');
+  return {ok:true, program:{mainName:'main', functions}};
+}
+
+/* ================= 内置示例 ================= */
+const EXAMPLES = {
+  'gate-zero · L门归零': '@main\nS?.\n.E.',
+  'min · 最小程序': '@main\nSE',
+  'resource · 资源': '@main\nS(E',
+  'counter · 计数器': '@main\nS((((E',
+  'direction · 方向': '@main\nS>E',
+  'gate · L门非零': '@main\nS(?E',
+  'fall · 三段下落': '@main\nS .\n . \n  E',
+  'fall-ladder · 下落+爬梯': '@main\nS...E\n ..^ ',
+  'turnaround · 转向': '@main\nS.. \n ..<\nE...',
+  'function · 函数': '@main\nSFE\n@F\nS(E',
+  'hchange · 函数改h(越界)': '@main\nSFE\n@F\nS<E',
+  'recursion · 递归递减': '@main\nS...F..E\n@F\nS[?F.E\n  ...^',
+  'fib · 斐波那契': '@main\nS...M...F...C...E\n@M\nS?[)M.E\n......^\n@F\nS!] ...F]F))E\n. ..!.^.....^\n. ...().....^\n.......^.....\n@C\nS!]C.E\n.....^',
+};
+const DEFAULT_SOURCE = EXAMPLES['recursion · 递归递减'];
+
+/* ================= XFeng 虚拟机（与 Python 解释器语义一致） ================= */
+class XFengVM {
+  constructor(data, Lin, Rin, maxTicks){
+    this.data = data;
+    this.maps = {};
+    for(const f of data.functions) this.maps[f.name] = f;
+    this.L = Lin; this.R = Rin; this.h = 1;
+    this.P = this.maps[data.mainName];
+    this.pos = {x:this.P.spawn[0], y:this.P.spawn[1]};
+    this.stack = [];
+    this.ticks = 0;
+    this.maxTicks = (maxTicks>0) ? maxTicks : null;
+    this.status = 'idle';
+    this.result = null;
+    this.error = null;
+  }
+  nextDir(){
+    const c = this.P.rows[this.pos.y][this.pos.x];
+    if(c==='E') return null;
+    if(c===' ') return [0,1];
+    if(c==='^') return [0,-1];
+    if(c==='?') return this.L===0 ? [0,1] : [this.h,0];
+    if(c==='!') return this.R===0 ? [0,1] : [this.h,0];
+    return [this.h,0];
+  }
+  step(){
+    if(this.status!=='idle') return null;
+    if(this.maxTicks && this.ticks>=this.maxTicks){
+      this._fail('MaxTicksExceeded',
+        `达到调试上限 max_ticks=${this.maxTicks}（不属于语言语义）`);
+      return null;
+    }
+    const tick0 = this.ticks;
+    const fromMap = this.P.name;
+    const c = this.P.rows[this.pos.y][this.pos.x];
+    const from = {x:this.pos.x, y:this.pos.y};
+    const base = {tick:tick0, fromMap, fromCell:c, from, L:this.L, R:this.R, h:this.h,
+                  depth:this.stack.length};
+
+    if(c==='E'){
+      if(this.P.name===this.data.mainName){
+        this.status='halted'; this.result=this.L; this.ticks++;
+        return Object.assign({type:'halt', map:this.P.name, to:{x:this.pos.x,y:this.pos.y}}, base);
+      }
+      if(this.stack.length===0){
+        this._fail('InternalError', '函数 E 但调用栈为空'); return null;
+      }
+      const fr = this.stack.pop();
+      this.P = this.maps[fr.map];
+      this.pos = {x:fr.x, y:fr.y};
+      this.ticks++;
+      return Object.assign({type:'return', map:this.P.name,
+        to:{x:this.pos.x,y:this.pos.y}}, base);
+    }
+
+    let dx, dy;
+    if(c===' '){ dx=0; dy=1; }
+    else if(c==='^'){ dx=0; dy=-1; }
+    else if(c==='?'){ dx = this.L===0 ? 0 : this.h; dy = this.L===0 ? 1 : 0; }
+    else if(c==='!'){ dx = this.R===0 ? 0 : this.h; dy = this.R===0 ? 1 : 0; }
+    else { dx = this.h; dy = 0; }
+
+    const nx = this.pos.x + dx, ny = this.pos.y + dy;
+    if(nx<0 || nx>=this.P.width || ny<0 || ny>=this.P.height){
+      this._fail('BoundaryError',
+        `@${this.P.name} (${this.pos.x},${this.pos.y}) 处字符 ${cellGlyph(c)} ` +
+        `向${DIR_NAME[dx+','+dy]||'?'}移动超出地图边界`);
+      return null;
+    }
+    this.pos = {x:nx, y:ny};
+    const c2 = this.P.rows[ny][nx];
+    let kind='move', glide=true, callee=null;
+
+    if(c2==='E'){
+      // 到达 E：当场 HALT / RETURN（doc §8/§35）
+      if(this.P.name===this.data.mainName){
+        this.status='halted'; this.result=this.L;
+        kind='halt';
+      } else {
+        if(this.stack.length===0){ this._fail('InternalError', '函数 E 但调用栈为空'); return null; }
+        const fr=this.stack.pop();
+        this.P = this.maps[fr.map];
+        this.pos = {x:fr.x, y:fr.y};
+        kind='return'; glide=false;
+      }
+    } else if(c2==='(') this.L++;
+    else if(c2==='[') this.L--;
+    else if(c2===')') this.R++;
+    else if(c2===']') this.R--;
+    else if(c2==='<') this.h=-1;
+    else if(c2==='>') this.h=1;
+    else if(this.maps[c2]){
+      this.stack.push({map:this.P.name, x:nx, y:ny});
+      this.P = this.maps[c2];
+      this.pos = {x:this.P.spawn[0], y:this.P.spawn[1]};
+      kind='call'; glide=false; callee=c2;
+    }
+    this.ticks++;
+    const to={x:this.pos.x, y:this.pos.y};
+    if(kind==='halt') return Object.assign({type:'halt', map:this.P.name, to, result:this.L}, base);
+    if(kind==='return') return Object.assign({type:'return', map:this.P.name, to}, base);
+    return Object.assign({type:'move', map:this.P.name, to, dx, dy, kind, glide, c2, callee}, base);
+  }
+  _fail(kind, msg){ this.status='error'; this.error={kind, msg}; }
+}
+
+/* ================= UI ================= */
+const mapEls = {};
+let marker = null;
+let vm = null;
+let running = false, timer = null;
+
+function speed(){
+  const v = parseInt(document.getElementById('speed').value,10)||120;
+  document.getElementById('speedVal').textContent = v+' ms';
+  return v;
+}
+function readInputs(){
+  return {
+    L: parseInt(document.getElementById('inL').value,10)||0,
+    R: parseInt(document.getElementById('inR').value,10)||0,
+    max: parseInt(document.getElementById('inMax').value,10)||0,
+  };
+}
+
+function buildMaps(data){
+  const area = document.getElementById('mapsArea');
+  area.innerHTML='';
+  for(const n in mapEls) delete mapEls[n];
+  marker = null;
+  for(const f of data.functions){
+    const card = document.createElement('div');
+    card.className='mapcard';
+    const title = document.createElement('div');
+    title.className='maptitle';
+    title.textContent = (f.name===data.mainName?'@main':'@'+f.name) +
+      ` · ${f.width}×${f.height}`;
+    const wrap = document.createElement('div');
+    wrap.className='mapwrap';
+    wrap.style.width = (f.width*CELL)+'px';
+    wrap.style.height = (f.height*CELL)+'px';
+    const cells=[];
+    for(let y=0;y<f.height;y++){
+      const row=document.createElement('div');
+      row.className='maprow';
+      const rowCells=[];
+      for(let x=0;x<f.width;x++){
+        const ch=f.rows[y][x];
+        const d=document.createElement('div');
+        d.className='cell '+clsFor(ch);
+        d.textContent = ch===' ' ? '\u00A0' : ch;
+        const desc=CELL_DESC[ch];
+        d.title = desc ? `${desc[0]}：${desc[1]}` : `函数调用点：${ch}`;
+        row.appendChild(d); rowCells.push(d);
+      }
+      wrap.appendChild(row); cells.push(rowCells);
+    }
+    card.appendChild(title); card.appendChild(wrap);
+    area.appendChild(card);
+    mapEls[f.name]={card, wrap, cells};
+  }
+}
+
+function placeMarker(mapName, x, y, animate, dx, dy){
+  const e = mapEls[mapName];
+  for(const n in mapEls) mapEls[n].card.classList.toggle('active', n===mapName);
+  if(!marker || marker.parentNode!==e.wrap){
+    if(marker) marker.remove();
+    marker=document.createElement('div');
+    marker.className='marker';
+    marker.innerHTML='<span class="runwrap"><span class="run">🏃</span></span><span class="ar">→</span>';
+    e.wrap.appendChild(marker);
+  }
+  const dur = animate ? speed() : 0;
+  marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
+  marker.style.left = (x*CELL + CELL/2)+'px';
+  marker.style.top  = (y*CELL + CELL/2)+'px';
+  for(const n in mapEls)
+    for(const r of mapEls[n].cells)
+      for(const d of r) d.classList.remove('cur');
+  e.cells[y][x].classList.add('cur');
+}
+
+function updateAll(){
+  if(!vm) return;
+  document.getElementById('regL').textContent = vm.L;
+  document.getElementById('regR').textContent = vm.R;
+  document.getElementById('regH').textContent = vm.h===1 ? '→' : '←';
+  document.getElementById('regTick').textContent = vm.ticks;
+  const ch = vm.P.rows[vm.pos.y][vm.pos.x];
+  document.getElementById('posInfo').innerHTML =
+    `<span class="map">@${vm.P.name}</span> (${vm.pos.x},${vm.pos.y})「${cellGlyph(ch)}」`;
+  const nd = vm.nextDir();
+  document.getElementById('nextInfo').textContent = nd
+    ? `下一方向：${DIR_NAME[nd[0]+','+nd[1]]||'?'}（${glyph(nd)}）`
+    : '下一动作：终止 / 返回';
+  if(marker){
+    const rw = marker.querySelector('.runwrap');
+    // 🏃 emoji 默认朝左：向右跑时 scaleX(-1) 翻转，向左/垂直时保持原样
+    if(rw) rw.style.transform = (nd && nd[0] > 0) ? 'scaleX(-1)' : 'scaleX(1)';
+    marker.querySelector('.ar').textContent = glyph(nd);
+  }
+
+  const ol = document.getElementById('stackList');
+  ol.innerHTML='';
+  if(vm.stack.length===0){
+    const li=document.createElement('li');
+    li.className='empty'; li.textContent='(空)';
+    ol.appendChild(li);
+  } else {
+    for(const fr of vm.stack){
+      const li=document.createElement('li');
+      li.textContent=`@${fr.map} (${fr.x},${fr.y})`;
+      ol.appendChild(li);
+    }
+  }
+  const sb=document.getElementById('statusBar');
+  if(vm.status==='halted'){
+    sb.textContent=`成功上岸！最终结余巧乐兹 L = ${vm.result}（HALT）`; sb.className='status halted';
+  } else if(vm.status==='error'){
+    sb.textContent=`${vm.error.kind}：${vm.error.msg}`; sb.className='status error';
+  } else {
+    sb.textContent = running ? '练起来！张老师跑起来了…' : '张老师待命中 · 随时练起来';
+    sb.className = running ? 'status running' : 'status ready';
+  }
+}
+
+function logLine(html, cls){
+  const box=document.getElementById('logList');
+  const d=document.createElement('div');
+  if(cls) d.className=cls;
+  d.innerHTML=html;
+  box.appendChild(d);
+  while(box.children.length>300) box.removeChild(box.firstChild);
+  box.scrollTop=box.scrollHeight;
+}
+function clearLog(){ document.getElementById('logList').innerHTML=''; }
+
+function burstAt(mapName, x, y, cls){
+  const wrap = mapEls[mapName].wrap;
+  const el = document.createElement('div');
+  el.className = 'burst ' + cls;
+  el.style.left = (x*CELL + CELL/2) + 'px';
+  el.style.top  = (y*CELL + CELL/2) + 'px';
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 900);
+}
+function flashMarker(){
+  if(!marker) return;
+  marker.classList.remove('tp');
+  void marker.offsetWidth;  // 重启动画
+  marker.classList.add('tp');
+}
+
+function applyEvent(ev){
+  if(!ev) return;
+  const c0 = cellGlyph(ev.fromCell);
+  if(ev.type==='move'){
+    placeMarker(ev.map, ev.to.x, ev.to.y, ev.glide, ev.dx, ev.dy);
+    if(ev.kind==='call'){
+      // 进入函数：传送特效（起点+终点爆点，标记缩放闪光）
+      burstAt(ev.fromMap, ev.from.x, ev.from.y, 'tp');
+      burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
+      flashMarker();
+      logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
+        `<span class="fn">调用 ${ev.callee}</span> → @${ev.map} (${ev.to.x},${ev.to.y})「S」`);
+    } else {
+      logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
+        `<span class="hl">${DIR_NAME[ev.dx+','+ev.dy]||'?'}</span> → ` +
+        `(${ev.to.x},${ev.to.y})「${cellGlyph(ev.c2)}」`);
+    }
+  } else if(ev.type==='return'){
+    // 到达函数 E 并返回：传送特效回调用点
+    placeMarker(ev.map, ev.to.x, ev.to.y, false, 0, 0);
+    burstAt(ev.fromMap, ev.from.x, ev.from.y, 'tp');
+    burstAt(ev.map, ev.to.x, ev.to.y, 'tp');
+    flashMarker();
+    logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
+      `<span class="hl">返回</span> @${ev.map} (${ev.to.x},${ev.to.y})`);
+  } else if(ev.type==='halt'){
+    // 到达主程序 E 并终止：上岸庆祝爆点 + 标记闪光
+    burstAt(ev.map, ev.to.x, ev.to.y, 'halt');
+    flashMarker();
+    logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
+      `<span class="hl">HALT</span> · 输出 L=${ev.result}`,'halt');
+  }
+}
+
+const editor = document.getElementById('editor');
+const parseErrEl = document.getElementById('parseError');
+
+function sourceSig(){ return editor.value; }
+function showParseError(err){
+  parseErrEl.textContent = `${err.kind}${err.line ? `（第 ${err.line} 行）` : ''}：${err.message}`;
+  parseErrEl.classList.remove('hidden');
+}
+function clearParseError(){ parseErrEl.classList.add('hidden'); }
+
+function ensureVM(force){
+  const src = sourceSig();
+  const {L,R,max} = readInputs();
+  const changed = force || !vm || vm.srcSig!==src ||
+                  vm.builtL!==L || vm.builtR!==R || vm.builtMax!==max;
+  if(!changed && vm.status==='idle') return true;
+  const res = parseSource(src);
+  if(!res.ok){ showParseError(res.error); return false; }
+  clearParseError();
+  buildMaps(res.program);
+  vm = new XFengVM(res.program, L, R, max);
+  vm.srcSig = src; vm.builtL=L; vm.builtR=R; vm.builtMax=max;
+  clearLog();
+  placeMarker(vm.P.name, vm.pos.x, vm.pos.y, false, 0, 0);
+  updateAll();
+  return true;
+}
+
+function liveParse(){
+  const res = parseSource(sourceSig());
+  const st = document.getElementById('parseStatus');
+  if(res.ok){
+    st.textContent = `✓ 语法 OK（${res.program.functions.length} 个程序段）`;
+    clearParseError();
+  } else {
+    st.textContent = `✗ ${res.error.kind}`;
+    showParseError(res.error);
+  }
+}
+
+function loadFile(file){
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    editor.value = rd.result;
+    document.getElementById('exampleSelect').selectedIndex = 0;
+    liveParse();
+    ensureVM(true);
+  };
+  rd.readAsText(file, 'utf-8');
+}
+function setRunning(v){
+  running=v;
+  document.getElementById('btnRun').textContent = v ? '⏸ 暂停' : '▶ 运行';
+  document.getElementById('inL').disabled=v;
+  document.getElementById('inR').disabled=v;
+  document.getElementById('inMax').disabled=v;
+  updateAll();
+}
+function tickOnce(){
+  if(!vm || vm.status!=='idle'){ pause(); return; }
+  const ev = vm.step();
+  applyEvent(ev);
+  updateAll();
+  if(vm.status!=='idle') pause();
+}
+function start(){
+  if(!ensureVM(false)) return;
+  setRunning(true);
+  clearInterval(timer);
+  timer = setInterval(tickOnce, speed());
+}
+function pause(){
+  clearInterval(timer);
+  if(running) setRunning(false);
+}
+function stepOnce(){ pause(); if(!ensureVM(false)) return; tickOnce(); }
+function reset(){ pause(); ensureVM(true); }
+
+document.getElementById('btnOpen').addEventListener('click', ()=>
+  document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', ()=>{
+  if(document.getElementById('fileInput').files[0]) loadFile(document.getElementById('fileInput').files[0]);
+  document.getElementById('fileInput').value='';
+});
+document.getElementById('exampleSelect').addEventListener('change', ()=>{
+  const v = document.getElementById('exampleSelect').value;
+  if(v && EXAMPLES[v]){ editor.value = EXAMPLES[v]; liveParse(); ensureVM(true); }
+});
+editor.addEventListener('input', ()=>{
+  document.getElementById('parseStatus').textContent = '…';
+  clearTimeout(window._parseTimer);
+  window._parseTimer = setTimeout(liveParse, 300);
+});
+['dragover','drop'].forEach(evt=>{
+  editor.addEventListener(evt, (e)=>{
+    e.preventDefault();
+    if(evt==='drop' && e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+});
+document.getElementById('btnRun').addEventListener('click', ()=>{ running ? pause() : start(); });
+document.getElementById('btnStep').addEventListener('click', stepOnce);
+document.getElementById('btnReset').addEventListener('click', reset);
+document.getElementById('speed').addEventListener('input', speed);
+document.addEventListener('keydown', (e)=>{
+  if(e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA' || e.target.tagName==='SELECT') return;
+  if(e.code==='Space'){ e.preventDefault(); running ? pause() : stepOnce(); }
+  else if(e.key==='p'||e.key==='P'){ running ? pause() : start(); }
+  else if(e.key==='r'||e.key==='R') reset();
+});
+
+/* ================= 弹窗教程 ================= */
+function showTutorial(){ document.getElementById('tutOverlay').classList.remove('hidden'); }
+function hideTutorial(){ document.getElementById('tutOverlay').classList.add('hidden'); }
+document.getElementById('tutClose').addEventListener('click', hideTutorial);
+document.getElementById('tutLater').addEventListener('click', hideTutorial);
+document.getElementById('tutGo').addEventListener('click', ()=>{
+  hideTutorial();
+  editor.value = DEFAULT_SOURCE;
+  document.getElementById('exampleSelect').selectedIndex = 0;
+  liveParse();
+  reset();
+});
+document.getElementById('tutNoMore').addEventListener('change', (e)=>{
+  try{ localStorage.setItem('xfeng.tut.done', e.target.checked ? '1' : ''); }catch(_){}
+});
+let tutDone=false;
+try{ tutDone = localStorage.getItem('xfeng.tut.done')==='1'; }catch(_){}
+if(tutDone) hideTutorial();
+
+/* ================= 初始化 ================= */
+document.getElementById('progTitle').textContent = TITLE;
+(function initExamples(){
+  const sel = document.getElementById('exampleSelect');
+  const first = document.createElement('option');
+  first.value=''; first.textContent='— 内置示例 —';
+  sel.appendChild(first);
+  for(const k in EXAMPLES){
+    const o=document.createElement('option');
+    o.value=k; o.textContent=k;
+    sel.appendChild(o);
+  }
+})();
+editor.value = PRELOAD ? PRELOAD : DEFAULT_SOURCE;
+liveParse();
+ensureVM(true);
+</script>
+</body>
+</html>
