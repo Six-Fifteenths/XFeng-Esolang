@@ -86,6 +86,10 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
   65%{transform:translate(-50%,-50%) scale(.15);opacity:.2}
   100%{transform:translate(-50%,-50%) scale(1);opacity:1}
 }
+.marker.out{animation:tpout .18s ease forwards}
+@keyframes tpout{from{transform:translate(-50%,-50%) scale(1);opacity:1}to{transform:translate(-50%,-50%) scale(0);opacity:0}}
+.marker.in{animation:tpin .18s ease-out}
+@keyframes tpin{from{transform:translate(-50%,-50%) scale(0);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
 .burst{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;pointer-events:none;z-index:4}
 .burst.tp{border:3px solid var(--ok);animation:tping .6s ease-out forwards}
 .burst.halt{border:4px solid var(--ok);box-shadow:0 0 18px rgba(255,209,102,.85);animation:halting .9s ease-out forwards}
@@ -110,13 +114,14 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 .row input[type=number]{width:78px;background:var(--surf2);border:1px solid var(--line);color:var(--text);
   border-radius:6px;padding:4px 6px;font-family:Consolas,monospace}
 .btns{display:flex;gap:8px}
-.ctrl-in{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.ci{display:flex;flex-direction:column;gap:2px}
-.ci span{font-size:10.5px;color:var(--dim);letter-spacing:.5px}
-.ci input{width:100%;background:var(--surf2);border:1px solid var(--line);color:var(--text);
-  border-radius:6px;padding:4px 6px;font-family:Consolas,monospace;font-size:16px}
-.ci input:focus{outline:none;border-color:var(--accent)}
-.ci input:disabled{opacity:.45;cursor:not-allowed}
+.ctrlin{margin-top:10px}
+.ctrlin .reg{background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.reg input.val{background:transparent;border:none;outline:none;color:var(--text);
+  width:72px;text-align:right;padding:0;appearance:textfield}
+.reg input.val:focus{outline:none}
+.reg input.val:disabled{opacity:.45;cursor:not-allowed}
+.reg input.val::-webkit-outer-spin-button,
+.reg input.val::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .btns button{flex:1;padding:7px 4px;border-radius:8px;border:1px solid var(--line);
   background:var(--surf2);color:var(--text);font-size:13px;cursor:pointer;font-weight:600}
 .btns button:hover{background:var(--hover)}
@@ -246,16 +251,14 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
     <div class="card">
       <h3>控制台 · 寄存器 / 参数</h3>
       <div class="regs">
-        <div class="reg l"><span class="lbl">L · 巧乐兹</span><span class="val" id="regL">0</span></div>
-        <div class="reg r"><span class="lbl">R · 雪碧</span><span class="val" id="regR">0</span></div>
+        <div class="reg l"><span class="lbl">L · 巧乐兹</span><input class="val" id="regL" type="number" value="0"></div>
+        <div class="reg r"><span class="lbl">R · 雪碧</span><input class="val" id="regR" type="number" value="0"></div>
         <div class="reg"><span class="lbl">h · 文理</span><span class="val" id="regH">→</span></div>
         <div class="reg"><span class="lbl">tick</span><span class="val" id="regTick">0</span></div>
       </div>
-      <div class="ctrl-in">
-        <label class="ci"><span>L<sub>in</sub></span><input id="inL" type="number" value="0"></label>
-        <label class="ci"><span>R<sub>in</sub></span><input id="inR" type="number" value="0"></label>
-        <label class="ci"><span>上限</span><input id="inMax" type="number" value="0" min="0"></label>
-        <label class="ci"><span>速度 ms</span><input id="speed" type="number" min="10" max="600" value="120"></label>
+      <div class="regs ctrlin">
+        <label class="reg"><span class="lbl">上限</span><input class="val" id="inMax" type="number" value="0" min="0"></label>
+        <label class="reg"><span class="lbl">速度 ms</span><input class="val" id="speed" type="number" min="1" value="120"></label>
       </div>
       <div class="btns">
         <button id="btnRun">▶ 运行</button>
@@ -556,20 +559,19 @@ const mapEls = {};
 let marker = null;
 let vm = null;
 let running = false, timer = null;
-let animTimer = null, teleport = null;
+let animTimer = null, teleport = null, markerEpoch = 0;
 
 function speed(){
   const el = document.getElementById('speed');
   let v = parseInt(el.value,10);
-  if(isNaN(v)) v = 120;
-  v = Math.max(10, Math.min(600, v));
-  if(el.value !== String(v)) el.value = v;
+  if(isNaN(v) || v < 1) v = 1;   // 下限 1ms，无上限
+  el.value = v;
   return v;
 }
 function readInputs(){
   return {
-    L: parseInt(document.getElementById('inL').value,10)||0,
-    R: parseInt(document.getElementById('inR').value,10)||0,
+    L: parseInt(document.getElementById('regL').value,10)||0,
+    R: parseInt(document.getElementById('regR').value,10)||0,
     max: parseInt(document.getElementById('inMax').value,10)||0,
   };
 }
@@ -623,6 +625,9 @@ function placeMarker(mapName, x, y, animate, dx, dy){
     e.wrap.appendChild(marker);
   }
   const dur = animate ? speed() : 0;
+  markerEpoch++;
+  const rw = marker.querySelector('.runwrap');
+  if(rw) rw.style.transform = (dx > 0) ? 'scaleX(-1)' : 'scaleX(1)';
   marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
   marker.style.left = (x*CELL + CELL/2)+'px';
   marker.style.top  = (y*CELL + CELL/2)+'px';
@@ -634,8 +639,8 @@ function placeMarker(mapName, x, y, animate, dx, dy){
 
 function updateAll(){
   if(!vm) return;
-  document.getElementById('regL').textContent = vm.L;
-  document.getElementById('regR').textContent = vm.R;
+  document.getElementById('regL').value = vm.L;
+  document.getElementById('regR').value = vm.R;
   document.getElementById('regH').textContent = vm.h===1 ? '→' : '←';
   document.getElementById('regTick').textContent = vm.ticks;
   const ch = vm.P.rows[vm.pos.y][vm.pos.x];
@@ -647,8 +652,9 @@ function updateAll(){
     : '下一动作：终止 / 返回';
   if(marker){
     const rw = marker.querySelector('.runwrap');
-    // 🏃 emoji 默认朝左：向右跑时 scaleX(-1) 翻转，向左/垂直时保持原样
-    if(rw) rw.style.transform = (nd && nd[0] > 0) ? 'scaleX(-1)' : 'scaleX(1)';
+    // 🏃 emoji 默认朝左：向右跑时 scaleX(-1) 翻转，向左/垂直时保持原样；
+    // nd 为 null（到达 E / 停机）时保持当前朝向，不重置翻转
+    if(rw && nd) rw.style.transform = (nd[0] > 0) ? 'scaleX(-1)' : 'scaleX(1)';
     marker.querySelector('.ar').textContent = glyph(nd);
   }
 
@@ -702,9 +708,25 @@ function flashMarker(){
   void marker.offsetWidth;  // 重启动画
   marker.classList.add('tp');
 }
+function markerOut(){
+  if(!marker) return;
+  marker.classList.remove('in','tp');
+  void marker.offsetWidth;  // 重启动画
+  marker.classList.add('out');
+}
+function markerIn(){
+  if(!marker) return;
+  marker.classList.remove('out','tp');
+  void marker.offsetWidth;  // 重启动画
+  marker.classList.add('in');
+}
+function markerNormal(){
+  if(!marker) return;
+  marker.classList.remove('out','in','tp');
+}
 
 /* ===== 传送动画调度 ===== */
-// 平移进入调用点/E 后，等滑动结束再播放传送（消失 → 出现在目标）
+// 平移进入调用点/E 后，等滑动结束再播放传送：消失 → 传送 → 显示 → 运动
 function scheduleTeleport(t){
   if(animTimer) clearTimeout(animTimer);
   teleport = t;
@@ -717,22 +739,29 @@ function finishTeleport(){
   if(!teleport) return;
   const t = teleport;
   teleport = null;
+  const mark = markerEpoch;
   if(t.type==='halt'){
-    // 平移入 E：庆祝爆点，等滑动播完再让 marker 消失
-    burstAt(t.srcMap, t.src.x, t.src.y, 'halt');
-    flashMarker();
+    // 平移入 E：等滑动播完 → 庆祝爆点 + 消失 → 隐藏（上岸离开）
     const vmRef = vm;
     setTimeout(()=>{
-      if(marker && vm===vmRef) marker.style.display='none';
-    }, Math.max(speed(), 60) + 80);
+      if(!marker || vm!==vmRef) return;
+      burstAt(t.srcMap, t.src.x, t.src.y, 'halt');
+      markerOut();
+      setTimeout(()=>{ if(marker && vm===vmRef) marker.style.display='none'; }, 200);
+    }, Math.max(speed(), 60) + 40);
     return;
   }
-  // 调用 / 返回：源点爆点 + marker 消失 → 瞬移目标 + 目标爆点 + marker 出现
+  // ① 消失（源点）→ ② 传送（瞬移）→ ③ 显示（目标）→ ④ 运动由后续 tick 接管
   burstAt(t.srcMap, t.src.x, t.src.y, 'tp');
-  flashMarker();
-  placeMarker(t.dstMap, t.dst.x, t.dst.y, false, 0, 0);
-  burstAt(t.dstMap, t.dst.x, t.dst.y, 'tp');
-  flashMarker();
+  markerOut();
+  setTimeout(()=>{
+    if(markerEpoch !== mark) return;   // 期间已有新移动则交给后续动画
+    placeMarker(t.dstMap, t.dst.x, t.dst.y, false, 0, 0);
+    burstAt(t.dstMap, t.dst.x, t.dst.y, 'tp');
+    markerIn();
+    updateAll();   // 同步箭头/翻转方向（vm 当前格）
+    setTimeout(markerNormal, 240);   // 显示动画播完恢复正常，交由后续运动
+  }, 200);
 }
 
 function applyEvent(ev){
@@ -783,8 +812,12 @@ function clearParseError(){ parseErrEl.classList.add('hidden'); }
 function ensureVM(force){
   const src = sourceSig();
   const {L,R,max} = readInputs();
+  // regL/regR 兼作初始输入与运行时显示：锁定（运行/暂停）时其值为运行值，
+  // 不能据此判定输入变化而重建 VM；仅在可编辑（未锁定）时比较 L/R
+  const locked = document.getElementById('regL').disabled;
   const changed = force || !vm || vm.srcSig!==src ||
-                  vm.builtL!==L || vm.builtR!==R || vm.builtMax!==max;
+                  (!locked && (vm.builtL!==L || vm.builtR!==R)) ||
+                  vm.builtMax!==max;
   if(!changed && vm.status==='idle') return true;
   const res = parseSource(src);
   if(!res.ok){ showParseError(res.error); return false; }
@@ -823,7 +856,7 @@ function loadFile(file){
   rd.readAsText(file, 'utf-8');
 }
 function lockInputs(on){
-  ['inL','inR','inMax','speed'].forEach(id=>{
+  ['regL','regR','inMax','speed'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.disabled=on;
   });
 }
