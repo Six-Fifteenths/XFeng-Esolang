@@ -68,6 +68,7 @@ def step(state: State, program: Program) -> dict:
         ev["action"] = "return"
         ev["to_map"] = pm.name
         ev["to"] = (px, py)
+        ev["call_point"] = (px, py)
         state.ticks += 1
         return ev
 

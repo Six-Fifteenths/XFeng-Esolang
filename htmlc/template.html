@@ -86,9 +86,9 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
   65%{transform:translate(-50%,-50%) scale(.15);opacity:.2}
   100%{transform:translate(-50%,-50%) scale(1);opacity:1}
 }
-.marker.out{animation:tpout .18s ease forwards}
+.marker.out{animation:tpout .06s ease forwards}
 @keyframes tpout{from{transform:translate(-50%,-50%) scale(1);opacity:1}to{transform:translate(-50%,-50%) scale(0);opacity:0}}
-.marker.in{animation:tpin .18s ease-out}
+.marker.in{animation:tpin .06s ease-out}
 @keyframes tpin{from{transform:translate(-50%,-50%) scale(0);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
 .burst{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;pointer-events:none;z-index:4}
 .burst.tp{border:3px solid var(--ok);animation:tping .6s ease-out forwards}
@@ -445,8 +445,9 @@ const EXAMPLES = {
   'hchange · 函数改h(越界)': '@main\nSFE\n@F\nS<E',
   'recursion · 递归递减': '@main\nS...F..E\n@F\nS[?F.E\n  ...^',
   'fib · 斐波那契': '@main\nS...M...F...C...E\n@M\nS?[)M.E\n......^\n@F\nS!] ...F]F))E\n. ..!.^.....^\n. ...().....^\n.......^.....\n@C\nS!]C.E\n.....^',
+  'nth-prime · 第n个质数': '# 第 n 个质数：(n,0) -> (p_n,0)，定义域 n>=1\n# 非注释源码 41 行；最长一行 14 个字符。\n# 算法在运行时依次枚举候选数和除数，不含素数表。\n@main\nS.F.E\n# F 用递归深度保存 n；基例把候选数置为 1。\n@F\nS?[F.XE\n.....(^\n# X 找到严格大于 L 的第一个质数。\n@X\nS()) .......\n.. )D ......\n..>.^>... ..\n........ K .\n........ .CE\n........>CX^\n# C 在不改变 L 的情况下清零 R。\n@C\nS!]C.E\n.....^\n# K 区分“除数等于候选数”和“真因子”。\n@K\nSG?A... \n..A...E<\n# D 可逆地判断 R 是否整除 L，且恢复两个寄存器。\n@D\nS?.... ....\n.  ...G ...\n.  ...ADA .\n. >... ...<\n. ........ \n.>...E....<\n@G\nS[]. ...\n. ()H) .\n.>... <.\n... ... \n...>.E.<\n@H\n.S!? ..\n.. <G .\n. ...E<\n. ....^\n.>....^\n# A 双向恢复：h=+1 走右半，h=-1 走左半经上方绕道，汇合到共享 E；执行 L+=R 并恢复 R。\n@A\n>............ \n^)(A!]S]!A()E<\n^)(.......()^.',
 };
-const DEFAULT_SOURCE = EXAMPLES['recursion · 递归递减'];
+const DEFAULT_SOURCE = EXAMPLES['nth-prime · 第n个质数'];
 
 /* ================= XFeng 虚拟机（与 Python 解释器语义一致） ================= */
 class XFengVM {
@@ -558,8 +559,8 @@ class XFengVM {
 const mapEls = {};
 let marker = null;
 let vm = null;
-let running = false, timer = null;
-let animTimer = null, teleport = null, markerEpoch = 0;
+let running = false, runTimer = null;
+let execTimer = null, execBusy = false, teleportAnim = false;
 
 function speed(){
   const el = document.getElementById('speed');
@@ -614,27 +615,32 @@ function buildMaps(data){
   }
 }
 
-function placeMarker(mapName, x, y, animate, dx, dy){
+function placeMarker(mapName, x, y, animate){
   const e = mapEls[mapName];
   for(const n in mapEls) mapEls[n].card.classList.toggle('active', n===mapName);
-  if(!marker || marker.parentNode!==e.wrap){
-    if(marker) marker.remove();
-    marker=document.createElement('div');
-    marker.className='marker';
-    marker.innerHTML='<span class="runwrap"><span class="run">🏃</span></span><span class="ar">→</span>';
-    e.wrap.appendChild(marker);
+  if(!teleportAnim){   // 传送动画期间完全锁定 marker 与当前格高亮（位置/重建/类/cur 都不动），
+    // 让消失动画在原格完整播放，动画结束后人物与高亮一起在目标格（函数 S / 调用点）本身出现
+    if(!marker || marker.parentNode!==e.wrap){
+      if(marker) marker.remove();
+      marker=document.createElement('div');
+      marker.className='marker';
+      marker.innerHTML='<span class="runwrap"><span class="run">🏃</span></span><span class="ar">→</span>';
+      e.wrap.appendChild(marker);
+    }
+    marker.style.display='';   // 停机/传送隐藏后恢复显示
+    markerNormal();            // 清除 out/in/tp 残留，防止传送竞态导致 marker 永久消失
+    const dur = animate ? speed() : 0;
+    const rw = marker.querySelector('.runwrap');
+    // 🏃 默认朝左：翻转跟随水平朝向 h（而非实际运动方向），垂直运动时也保持 h 决定的朝向
+    if(rw) rw.style.transform = (vm.h > 0) ? 'scaleX(-1)' : 'scaleX(1)';
+    marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
+    marker.style.left = (x*CELL + CELL/2)+'px';
+    marker.style.top  = (y*CELL + CELL/2)+'px';
+    for(const n in mapEls)
+      for(const r of mapEls[n].cells)
+        for(const d of r) d.classList.remove('cur');
+    e.cells[y][x].classList.add('cur');
   }
-  const dur = animate ? speed() : 0;
-  markerEpoch++;
-  const rw = marker.querySelector('.runwrap');
-  if(rw) rw.style.transform = (dx > 0) ? 'scaleX(-1)' : 'scaleX(1)';
-  marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
-  marker.style.left = (x*CELL + CELL/2)+'px';
-  marker.style.top  = (y*CELL + CELL/2)+'px';
-  for(const n in mapEls)
-    for(const r of mapEls[n].cells)
-      for(const d of r) d.classList.remove('cur');
-  e.cells[y][x].classList.add('cur');
 }
 
 function updateAll(){
@@ -652,9 +658,9 @@ function updateAll(){
     : '下一动作：终止 / 返回';
   if(marker){
     const rw = marker.querySelector('.runwrap');
-    // 🏃 emoji 默认朝左：向右跑时 scaleX(-1) 翻转，向左/垂直时保持原样；
+    // 🏃 默认朝左：翻转跟随水平朝向 h（而非实际运动方向），垂直运动时保持 h 决定的朝向；
     // nd 为 null（到达 E / 停机）时保持当前朝向，不重置翻转
-    if(rw && nd) rw.style.transform = (nd[0] > 0) ? 'scaleX(-1)' : 'scaleX(1)';
+    if(rw && nd) rw.style.transform = (vm.h > 0) ? 'scaleX(-1)' : 'scaleX(1)';
     marker.querySelector('.ar').textContent = glyph(nd);
   }
 
@@ -725,43 +731,46 @@ function markerNormal(){
   marker.classList.remove('out','in','tp');
 }
 
-/* ===== 传送动画调度 ===== */
-// 平移进入调用点/E 后，等滑动结束再播放传送：消失 → 传送 → 显示 → 运动
-function scheduleTeleport(t){
-  if(animTimer) clearTimeout(animTimer);
-  teleport = t;
-  animTimer = setTimeout(()=>{ animTimer=null; finishTeleport(); },
-    Math.max(speed(), 60) + 60);
-}
-// 立即完成待处理的传送：新 tick / 暂停 / 重置前调用，保证不跳格、不残留
-function finishTeleport(){
-  if(animTimer){ clearTimeout(animTimer); animTimer=null; }
-  if(!teleport) return;
-  const t = teleport;
-  teleport = null;
-  const mark = markerEpoch;
-  if(t.type==='halt'){
-    // 平移入 E：等滑动播完 → 庆祝爆点 + 消失 → 隐藏（上岸离开）
-    const vmRef = vm;
-    setTimeout(()=>{
-      if(!marker || vm!==vmRef) return;
-      burstAt(t.srcMap, t.src.x, t.src.y, 'halt');
-      markerOut();
-      setTimeout(()=>{ if(marker && vm===vmRef) marker.style.display='none'; }, 200);
-    }, Math.max(speed(), 60) + 40);
-    return;
+/* ===== 执行阶段（1 tick 的后半段：移动 → 执行） ===== */
+// 人物在目标格上执行该格：函数格播放传送，停机播放上岸；普通格仅停留
+function execPhase(ev){
+  if(!ev) return;
+  if(ev.type==='move' && ev.kind==='call'){
+    const cp = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
+    playTeleport(ev.fromMap, cp, ev.map, ev.to);
+  } else if(ev.type==='return'){
+    const ep = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
+    playTeleport(ev.fromMap, ep, ev.map, ev.to);
+  } else if(ev.type==='halt'){
+    playHalt(ev);
   }
-  // ① 消失（源点）→ ② 传送（瞬移）→ ③ 显示（目标）→ ④ 运动由后续 tick 接管
-  burstAt(t.srcMap, t.src.x, t.src.y, 'tp');
+}
+// 传送：在源格消失 → 瞬移到目标格本身（函数 S / 调用点）→ 出现；总时长约一个执行阶段
+function playTeleport(srcMap, src, dstMap, dst){
+  const half = Math.max(Math.floor(speed()/2), 40);
+  execBusy = true;   // 传送动画期间挡住新 tick，避免跳过中间格
+  burstAt(srcMap, src.x, src.y, 'tp');
+  teleportAnim = true;
   markerOut();
   setTimeout(()=>{
-    if(markerEpoch !== mark) return;   // 期间已有新移动则交给后续动画
-    placeMarker(t.dstMap, t.dst.x, t.dst.y, false, 0, 0);
-    burstAt(t.dstMap, t.dst.x, t.dst.y, 'tp');
+    if(!mapEls[dstMap] || dstMap !== vm.P.name){ teleportAnim=false; markerNormal(); execBusy=false; return; }   // 程序已切换则放弃
+    teleportAnim = false;
+    placeMarker(dstMap, dst.x, dst.y, false);   // 瞬移到目标格本身（函数 S / 调用点）
+    burstAt(dstMap, dst.x, dst.y, 'tp');
     markerIn();
     updateAll();   // 同步箭头/翻转方向（vm 当前格）
-    setTimeout(markerNormal, 240);   // 显示动画播完恢复正常，交由后续运动
-  }, 200);
+    setTimeout(()=>{ markerNormal(); execBusy=false; if(running) scheduleNext(0); }, half);   // 出现动画播完，恢复连续运行
+  }, half);
+}
+// 停机：上岸庆祝 + marker 消失
+function playHalt(ev){
+  const vmRef = vm;
+  setTimeout(()=>{
+    if(!marker || vm!==vmRef) return;
+    burstAt(ev.map, ev.to.x, ev.to.y, 'halt');
+    markerOut();
+    setTimeout(()=>{ if(marker && vm===vmRef) marker.style.display='none'; }, 200);
+  }, Math.max(speed(), 60) + 40);
 }
 
 function applyEvent(ev){
@@ -769,31 +778,26 @@ function applyEvent(ev){
   const c0 = cellGlyph(ev.fromCell);
   if(ev.type==='move'){
     if(ev.kind==='call'){
-      // 调用：① 平移进入调用点（无特效）→ ② 到达后传送进函数 S
+      // 移动阶段：滑到调用点；执行阶段（execPhase）播放传送进函数 S
       const cp = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
-      placeMarker(ev.fromMap, cp.x, cp.y, true, ev.dx, ev.dy);
-      scheduleTeleport({type:'call', srcMap: ev.fromMap, src: cp,
-        dstMap: ev.map, dst: ev.to});
+      placeMarker(ev.fromMap, cp.x, cp.y, true);
       logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
         `<span class="fn">调用 ${ev.callee}</span> → @${ev.map} (${ev.to.x},${ev.to.y})「S」`);
     } else {
-      placeMarker(ev.map, ev.to.x, ev.to.y, ev.glide, ev.dx, ev.dy);
+      placeMarker(ev.map, ev.to.x, ev.to.y, ev.glide);
       logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
         `<span class="hl">${DIR_NAME[ev.dx+','+ev.dy]||'?'}</span> → ` +
         `(${ev.to.x},${ev.to.y})「${cellGlyph(ev.c2)}」`);
     }
   } else if(ev.type==='return'){
-    // 返回：① 平移进入函数 E（无特效）→ ② 传送回调用点
+    // 移动阶段：滑入函数 E；执行阶段（execPhase）播放传送回调用点
     const ep = {x: ev.from.x + ev.dx, y: ev.from.y + ev.dy};
-    placeMarker(ev.fromMap, ep.x, ep.y, true, ev.dx, ev.dy);
-    scheduleTeleport({type:'return', srcMap: ev.fromMap, src: ep,
-      dstMap: ev.map, dst: ev.to});
+    placeMarker(ev.fromMap, ep.x, ep.y, true);
     logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
       `<span class="hl">返回</span> @${ev.map} (${ev.to.x},${ev.to.y})`);
   } else if(ev.type==='halt'){
-    // 停机：平移入 E → 上岸庆祝 → marker 消失
-    placeMarker(ev.map, ev.to.x, ev.to.y, true, ev.dx, ev.dy);
-    scheduleTeleport({type:'halt', srcMap: ev.map, src: ev.to});
+    // 移动阶段：平移入 E；执行阶段（execPhase）播放上岸庆祝
+    placeMarker(ev.map, ev.to.x, ev.to.y, true);
     logLine(`t=${ev.tick} @${ev.fromMap} (${ev.from.x},${ev.from.y})「${c0}」→ ` +
       `<span class="hl">HALT</span> · 输出 L=${ev.result}`,'halt');
   }
@@ -823,12 +827,11 @@ function ensureVM(force){
   if(!res.ok){ showParseError(res.error); return false; }
   clearParseError();
   buildMaps(res.program);
-  if(animTimer){ clearTimeout(animTimer); animTimer=null; }
-  teleport = null;
+  if(execTimer){ clearTimeout(execTimer); execTimer=null; }
   vm = new XFengVM(res.program, L, R, max);
   vm.srcSig = src; vm.builtL=L; vm.builtR=R; vm.builtMax=max;
   clearLog();
-  placeMarker(vm.P.name, vm.pos.x, vm.pos.y, false, 0, 0);
+  placeMarker(vm.P.name, vm.pos.x, vm.pos.y, false);
   updateAll();
   return true;
 }
@@ -867,26 +870,50 @@ function setRunning(v){
   updateAll();
 }
 function tickOnce(){
-  finishTeleport();   // 先完成未竟传送，保证返回回调用点本身、不跳格
+  if(running && (execTimer || execBusy)) return;   // 连续运行且上一格的执行阶段/传送动画未完成
   if(!vm || vm.status!=='idle'){ pause(); return; }
-  const ev = vm.step();
-  applyEvent(ev);
+  const ev = vm.step();              // 移动 + 执行（语义上仍是 1 tick）
+  applyEvent(ev);                    // 移动阶段：人物滑入目标格（duration = speed）
   updateAll();
+  const isTP = ev.type==='return' || (ev.type==='move' && ev.kind==='call');
+  if(isTP || ev.type==='halt'){
+    // 执行阶段：传送/上岸动画，等移动（speed）播完再播放
+    execTimer = setTimeout(()=>{ execTimer=null; execPhase(ev); }, speed());
+  } else if(running){
+    // 普通格：执行阶段不消耗时间，直接调度下一 tick（移动 speed）
+    scheduleNext(speed());
+  }
   if(vm.status!=='idle') pause();
 }
 function start(){
   if(!ensureVM(false)) return;
   setRunning(true);
-  clearInterval(timer);
-  timer = setInterval(tickOnce, speed());
+  scheduleNext(0);   // 立即开始第一个 tick
+}
+// 浮动间隔调度：普通格 1 tick = speed；传送格 1 tick = 移动 speed + 执行 speed
+function scheduleNext(delay){
+  clearTimeout(runTimer);
+  runTimer = setTimeout(()=>{ runTimer=null; tickOnce(); }, delay);
 }
 function pause(){
-  clearInterval(timer);
-  finishTeleport();
+  clearTimeout(runTimer);
   if(running) setRunning(false);
 }
 function stepOnce(){ pause(); if(!ensureVM(false)) return; lockInputs(true); tickOnce(); }
-function reset(){ pause(); lockInputs(false); ensureVM(true); }
+function reset(){
+  pause();
+  lockInputs(false);
+  if(vm){
+    const L = parseInt(document.getElementById('regL').value,10)||0;
+    const R = parseInt(document.getElementById('regR').value,10)||0;
+    // 仅当 regL/regR 仍是运行后的值（未被用户手动改过）时，恢复本次运行的初始输入
+    if(L === vm.L && R === vm.R){
+      document.getElementById('regL').value = vm.builtL;
+      document.getElementById('regR').value = vm.builtR;
+    }
+  }
+  ensureVM(true);
+}
 
 document.getElementById('btnOpen').addEventListener('click', ()=>
   document.getElementById('fileInput').click());

@@ -19,6 +19,11 @@ ENV/
 
 # 生成的 HTML（可随时用 `python -m htmlc` 重新生成）
 dist/
+ide.html
+
+# 内部设计参考与验证过程记录（不公开）
+ref.md
+nth-prime-computation-record.json
 
 # 编辑器 / 系统
 .vscode/

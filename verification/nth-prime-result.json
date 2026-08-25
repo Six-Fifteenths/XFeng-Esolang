@@ -1,0 +1,20 @@
+{
+  "input": [
+    500,
+    0
+  ],
+  "output": 3571,
+  "right_register": 0,
+  "xfeng_ticks": 81874481964,
+  "checkpoint_count": 500,
+  "reference": "independent exact Eratosthenes sieve",
+  "all_checkpoints_match": true,
+  "max_call_depth": 7156,
+  "max_absolute_register": 3571,
+  "source_non_comment_lines": 41,
+  "source_max_line_length": 14,
+  "source_sha256": "5937335c81180ca71f8f2e0bc1b9f83e450b48084101112ab6ba3b8a9ad526a8",
+  "elapsed_seconds": 212.00303400005214,
+  "python": "3.14.6",
+  "numpy": "2.4.6"
+}

@@ -272,5 +272,40 @@ class TestFibonacci(unittest.TestCase):
             self.assertEqual((st.L, st.R), (expected, 0))
 
 
+class TestNthPrime(unittest.TestCase):
+    """Runtime nth-prime algorithm; the 500-case check is in tools/."""
+
+    @classmethod
+    def setUpClass(cls):
+        src = Path(__file__).resolve().parent.parent / "examples" / "nth-prime.xfeng"
+        cls.prog = parse_source(src.read_text(encoding="utf-8"))
+
+    def test_first_15_values(self):
+        expected_primes = [
+            2, 3, 5, 7, 11, 13, 17, 19,
+            23, 29, 31, 37, 41, 43, 47,
+        ]
+        for n, expected in enumerate(expected_primes, 1):
+            self.assertEqual(run(self.prog, L_in=n, R_in=0), expected)
+
+    def test_right_register_remains_zero(self):
+        from xfeng.interpreter import State, step
+
+        st = State(self.prog, L_in=15, R_in=0)
+        while True:
+            ev = step(st, self.prog)
+            if ev["action"] == "halt":
+                break
+        self.assertEqual((st.L, st.R), (47, 0))
+
+    def test_source_size_contract(self):
+        src = (Path(__file__).resolve().parent.parent /
+               "examples" / "nth-prime.xfeng")
+        lines = src.read_text(encoding="utf-8").splitlines()
+        code = [line for line in lines if not line.startswith("#")]
+        self.assertEqual(len(code), 41)
+        self.assertLessEqual(max(map(len, code)), 14)
+
+
 if __name__ == "__main__":
     unittest.main()
