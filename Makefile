@@ -3,7 +3,7 @@
 
 PY ?= python3
 
-.PHONY: test check ide html dist clean
+.PHONY: test check clean
 
 ## 运行全部单元测试
 test:
@@ -13,18 +13,7 @@ test:
 check:
 	$(PY) -m xfeng examples/fib.xfeng --check
 
-## 生成通用网页 IDE（内置示例）
-ide:
-	$(PY) -m htmlc -o ide.html
-
-## 把 examples/ 下所有 .xfeng 生成为预加载的 IDE 页（dist/*.html）
-html dist:
-	@mkdir -p dist
-	@for f in examples/*.xfeng; do \
-		$(PY) -m htmlc "$$f" -o "dist/$$(basename "$$f" .xfeng).html"; \
-	done
-
-## 清理生成物与缓存
+## 清理本地生成物与缓存
 clean:
-	rm -rf dist ide.html
+	rm -rf dist
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +

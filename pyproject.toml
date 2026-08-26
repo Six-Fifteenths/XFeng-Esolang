@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xfeng"
 version = "1.0.0"
-description = "XFeng 1.0 — 二维空间控制流 esolang：解释器 + XFeng→HTML 可视化页编译器"
+description = "XFeng 1.0 — 二维空间控制流 esolang 解释器"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -30,10 +30,6 @@ classifiers = [
 
 [project.scripts]
 xfeng = "xfeng.cli:main"
-htmlc = "htmlc.compiler:main"
 
 [tool.setuptools]
-packages = ["xfeng", "htmlc"]
-
-[tool.setuptools.package-data]
-htmlc = ["template.html"]
+packages = ["xfeng"]

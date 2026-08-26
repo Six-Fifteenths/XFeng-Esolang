@@ -20,5 +20,3 @@ jobs:
         run: python -m unittest discover -s tests
       - name: 解释器冒烟测试（斐波那契）
         run: python -m xfeng examples/fib.xfeng -l 10
-      - name: HTML 编译冒烟测试
-        run: python -m htmlc examples/fib.xfeng -o /tmp/fib.html
