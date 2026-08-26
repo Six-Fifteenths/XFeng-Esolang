@@ -70,8 +70,16 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 .cell.lt,.cell.gt{color:var(--cH)}
 .cell.up{color:var(--ok)}
 .cell.q,.cell.bang{color:#d0a8ff}
-.cell.fn{color:#ff8ac2}
+.cell.fn{color:#ffffff}
 .cell.cur{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);z-index:1}
+/* 贴图模式（练起来）：emoji / SVG 尺寸与底色 */
+body[data-skin="emoji"] .cell{font-size:21px;background:#1f1810}
+body[data-skin="emoji"] .cell.sp{background:#0f0a06}
+body[data-skin="emoji"] .cell svg{display:block}
+/* 函数调用点：背后传送门圆点（下层）+ 函数字符（上层叠加） */
+body[data-skin="emoji"] .cell.fn .fnlay{position:relative;width:100%;height:100%}
+body[data-skin="emoji"] .cell.fn .portal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:23px;opacity:.95;filter:drop-shadow(0 0 3px rgba(255,138,194,.85))}
+body[data-skin="emoji"] .cell.fn .fnch{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#ffffff;z-index:1;text-shadow:0 1px 3px rgba(0,0,0,.9)}
 .marker{position:absolute;transform:translate(-50%,-50%);
   display:flex;flex-direction:column;align-items:center;line-height:1;
   z-index:3;pointer-events:none;filter:drop-shadow(0 3px 5px rgba(0,0,0,.55))}
@@ -144,7 +152,8 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 .legend b.c-lt,.legend b.c-gt{color:var(--cH)}
 .legend b.c-lp,.legend b.c-lm{color:var(--cL)}
 .legend b.c-rp,.legend b.c-rm{color:var(--cR)}
-.legend b.c-q,.legend b.c-bang{color:#d0a8ff}.legend b.c-fn{color:#ff8ac2}
+.legend b.c-q,.legend b.c-bang{color:#d0a8ff}.legend b.c-fn{color:#ffffff}
+.legend b svg{width:18px;height:18px;vertical-align:-4px}
 .tribute{text-align:center;color:var(--dim);font-size:12.5px;padding:2px 16px 22px;letter-spacing:.5px}
 .tribute .song{color:var(--ok);font-weight:600}
 .hidden{display:none!important}
@@ -234,6 +243,10 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
         <button id="btnOpen" type="button">📂 打开 .xfeng</button>
         <input type="file" id="fileInput" accept=".xfeng,.txt,text/plain" hidden>
         <select id="exampleSelect" title="内置示例"></select>
+        <select id="skinSelect" title="地图贴图模式（不影响执行）">
+          <option value="chars">念张师 · 字符</option>
+          <option value="emoji">练起来 · 贴图</option>
+        </select>
         <span id="parseStatus"></span>
       </div>
       <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off"
@@ -284,32 +297,32 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
       <div class="legend">
         <div class="lg-grp">
           <div class="lg-h">结构</div>
-          <span><b class="c-s">S</b> 出生点（无执行）</span>
-          <span><b class="c-e">E</b> 终点（主程序停机 / 函数返回）</span>
-          <span><b class="c-dot">.</b> 平地（沿 h 直行）</span>
+          <span><b class="c-s" data-lg="S">S</b> 出生点（无执行）</span>
+          <span><b class="c-e" data-lg="E">E</b> 终点（主程序停机 / 函数返回）</span>
+          <span><b class="c-dot" data-lg=".">.</b> 平地（沿 h 直行）</span>
         </div>
         <div class="lg-grp">
           <div class="lg-h">移动</div>
-          <span><b class="c-sp">␣</b> 空格 · 自由落体 ↓</span>
-          <span><b class="c-up">^</b> 梯子 · 向上爬 ↑</span>
-          <span><b class="c-lt">&lt;</b> 左转 · h=−1</span>
-          <span><b class="c-gt">&gt;</b> 右转 · h=+1</span>
+          <span><b class="c-sp" data-lg=" ">␣</b> 空格 · 自由落体 ↓</span>
+          <span><b class="c-up" data-lg="^">^</b> 梯子 · 向上爬 ↑</span>
+          <span><b class="c-lt" data-lg="<">&lt;</b> 左转 · h=−1</span>
+          <span><b class="c-gt" data-lg=">">&gt;</b> 右转 · h=+1</span>
         </div>
         <div class="lg-grp">
           <div class="lg-h">寄存器 · 巧乐兹 L / 雪碧 R</div>
-          <span><b class="c-lp">(</b> L+1</span>
-          <span><b class="c-lm">[</b> L−1</span>
-          <span><b class="c-rp">)</b> R+1</span>
-          <span><b class="c-rm">]</b> R−1</span>
+          <span><b class="c-lp" data-lg="(">(</b> L+1</span>
+          <span><b class="c-lm" data-lg="[">[</b> L−1</span>
+          <span><b class="c-rp" data-lg=")">)</b> R+1</span>
+          <span><b class="c-rm" data-lg="]">]</b> R−1</span>
         </div>
         <div class="lg-grp">
           <div class="lg-h">条件门</div>
-          <span><b class="c-q">?</b> L=0 → 下沉，否则直行</span>
-          <span><b class="c-bang">!</b> R=0 → 下沉，否则直行</span>
+          <span><b class="c-q" data-lg="?">?</b> L=0 → 下沉，否则直行</span>
+          <span><b class="c-bang" data-lg="!">!</b> R=0 → 下沉，否则直行</span>
         </div>
         <div class="lg-grp">
           <div class="lg-h">函数</div>
-          <span><b class="c-fn">函</b> 调用点 · 进入同名函数</span>
+          <span><b class="c-fn" data-lg="fn">函</b> 调用点 · 进入同名函数</span>
         </div>
       </div>
     </div>
@@ -349,6 +362,58 @@ function clsFor(ch){
   if(ch==='('||ch==='[')return 'lp'; if(ch===')'||ch===']')return 'rp';
   if(ch==='<')return 'lt'; if(ch==='>')return 'gt'; if(ch==='^')return 'up';
   if(ch==='?')return 'q'; if(ch==='!')return 'bang'; if(ch===' ')return 'sp'; return 'fn';
+}
+
+/* ===== 贴图模式（练起来）：字符 → emoji / SVG，仅影响显示，不影响执行 ===== */
+// 落地暗门（trapdoor）：地板上的可开门板；? 铰链在左 + 圆把手，! 铰链在右 + 竖条把手
+const trapdoor = (mark, right)=>{
+  const hx = right ? 21 : 5;
+  const markSvg = mark === '!'
+    ? '<rect x="20.5" y="10" width="3" height="9" rx="1" fill="#ffd966"/>'
+    : '<circle cx="24" cy="16" r="2.4" fill="#ffd966"/>';
+  return `<svg width="30" height="30" viewBox="0 0 32 32">` +
+    `<rect x="3" y="3" width="26" height="26" rx="2" fill="#0e0804"/>` +
+    `<rect x="5" y="5" width="22" height="22" rx="2" fill="#8a5a2b" stroke="#5a3a1a" stroke-width="1.5"/>` +
+    `<line x1="16" y1="5" x2="16" y2="27" stroke="#4a2c12" stroke-width="2"/>` +
+    `<rect x="${hx}" y="10" width="4" height="5" rx="1" fill="#c9a86a"/>` +
+    `<rect x="${hx}" y="18" width="4" height="5" rx="1" fill="#c9a86a"/>` +
+    markSvg + `</svg>`;
+};
+const SKIN_FLOOR = `<svg width="30" height="30" viewBox="0 0 32 32">` +
+  `<rect x="1" y="1" width="30" height="30" rx="2" fill="#7a6a50"/>` +
+  `<path d="M1 11H31M1 21H31M10 1V11M21 11V21M10 21V31M21 1V11" stroke="#4f422e" stroke-width="1.6" fill="none"/>` +
+  `</svg>`;
+const SKIN_EMOJI = {
+  'S': '🚩', 'E': '🏁', '.': SKIN_FLOOR,
+  '?': trapdoor('?', false), '!': trapdoor('!', true),
+  '^': '🪜', '(': '🍦', ')': '🥤', '[': '🍴', ']': '🚰',
+  '<': '◀️', '>': '▶️',
+};
+let skin = 'chars';   // 'chars'=念张师（字符）｜'emoji'=练起来（贴图）
+// 图例符号：随贴图模式联动（念张师=字符 / 练起来=贴图）
+const LG_EMOJI = {
+  'S':'🚩','E':'🏁','.':'🧱',' ':'␣','^':'🪜','<':'◀️','>':'▶️',
+  '(':'🍦','[':'🍴',')':'🥤',']':'🚰','?':trapdoor('?',false),'!':trapdoor('!',true),'fn':'🔴',
+};
+const LG_CHARS = {'S':'S','E':'E','.':'.',' ':'␣','^':'^','<':'<','>':'>','(':'(','[':'[',')':')',']':']','?':'?','!':'!','fn':'函'};
+function renderCell(d, ch){
+  if(skin === 'chars'){ d.textContent = ch===' ' ? '\u00A0' : ch; return; }
+  if(ch === ' '){ d.textContent = ''; return; }
+  const em = SKIN_EMOJI[ch];
+  if(em !== undefined){ d.innerHTML = em; return; }
+  // 函数调用点：函数字符 + 背后传送门圆点（🔴 在下层，字符叠加在上层）
+  d.innerHTML = `<span class="fnlay"><span class="portal">🔴</span><span class="fnch">${ch}</span></span>`;
+}
+function setSkin(s){
+  skin = s;
+  document.body.dataset.skin = s;
+  for(const n in mapEls)
+    for(const row of mapEls[n].cells)
+      for(const d of row) renderCell(d, d.dataset.ch);
+  // 图例符号随模式联动
+  document.querySelectorAll('.legend [data-lg]').forEach(b=>{
+    b.innerHTML = skin === 'emoji' ? LG_EMOJI[b.dataset.lg] : LG_CHARS[b.dataset.lg];
+  });
 }
 
 /* ================= 解析器（移植自 xfeng/parser.py） ================= */
@@ -602,7 +667,8 @@ function buildMaps(data){
         const ch=f.rows[y][x];
         const d=document.createElement('div');
         d.className='cell '+clsFor(ch);
-        d.textContent = ch===' ' ? '\u00A0' : ch;
+        d.dataset.ch = ch;
+        renderCell(d, ch);
         const desc=CELL_DESC[ch];
         d.title = desc ? `${desc[0]}：${desc[1]}` : `函数调用点：${ch}`;
         row.appendChild(d); rowCells.push(d);
@@ -924,6 +990,9 @@ document.getElementById('fileInput').addEventListener('change', ()=>{
 document.getElementById('exampleSelect').addEventListener('change', ()=>{
   const v = document.getElementById('exampleSelect').value;
   if(v && EXAMPLES[v]){ editor.value = EXAMPLES[v]; liveParse(); ensureVM(true); }
+});
+document.getElementById('skinSelect').addEventListener('change', (e)=>{
+  setSkin(e.target.value);   // 只改贴图，不影响运行中的 VM / marker
 });
 editor.addEventListener('input', ()=>{
   document.getElementById('parseStatus').textContent = '…';
