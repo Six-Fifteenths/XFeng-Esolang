@@ -29,6 +29,11 @@ header{display:flex;align-items:center;gap:14px;padding:10px 16px;
 .status.running{background:#223019;color:var(--accent);border-color:#3c541f}
 .status.halted{background:#2e2a12;color:var(--ok);border-color:#544a1a}
 .status.error{background:#3a1c16;color:var(--err);border-color:#5c2a1e}
+.github-link{display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;color:var(--dim);flex:none;text-decoration:none;
+  transition:color .15s}
+.github-link:hover{color:var(--accent)}
+.github-link svg{width:22px;height:22px;fill:currentColor;display:block}
 main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 #mapsArea{flex:1;display:flex;flex-wrap:wrap;gap:14px;align-content:flex-start;min-width:0}
 #panel{width:330px;flex:none;display:flex;flex-direction:column;gap:12px}
@@ -71,7 +76,14 @@ main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 .cell.up{color:var(--ok)}
 .cell.q,.cell.bang{color:#d0a8ff}
 .cell.fn{color:#ffffff}
-.cell.cur{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);z-index:1}
+.cell.cur{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);z-index:1;
+  animation:curIn var(--cur-dur,.18s) ease-out}
+.cell.cur-out{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);z-index:1;
+  animation:curOut var(--cur-dur,.18s) ease-out forwards}
+@keyframes curIn{from{box-shadow:inset 0 0 0 2px rgba(255,255,255,0)}
+  to{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85)}}
+@keyframes curOut{from{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85)}
+  to{box-shadow:inset 0 0 0 2px rgba(255,255,255,0)}}
 /* 贴图模式（练起来）：emoji / SVG 尺寸与底色 */
 body[data-skin="emoji"] .cell{font-size:21px;background:#1f1810}
 body[data-skin="emoji"] .cell.sp{background:#0f0a06}
@@ -83,7 +95,7 @@ body[data-skin="emoji"] .cell.fn .fnch{position:absolute;inset:0;display:flex;al
 .marker{position:absolute;transform:translate(-50%,-50%);
   display:flex;flex-direction:column;align-items:center;line-height:1;
   z-index:3;pointer-events:none;filter:drop-shadow(0 3px 5px rgba(0,0,0,.55))}
-.marker .runwrap{display:inline-block}
+.marker .runwrap{display:inline-block;transition:transform .18s ease}
 .marker .run{display:inline-block;font-size:26px;animation:bob .35s ease-in-out infinite alternate}
 .marker .ar{font-size:11px;color:var(--ok);line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.8);margin-top:1px}
 @keyframes bob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
@@ -233,6 +245,11 @@ body[data-skin="emoji"] .cell.fn .fnch{position:absolute;inset:0;display:flex;al
   <div class="brand">XFeng<span class="v">1.0 · 张雪峰跑步 · 练起来</span></div>
   <div id="progTitle">__PROGNAME__</div>
   <div id="statusBar" class="status ready">就绪</div>
+  <a class="github-link" href="https://github.com/Six-Fifteenths/XFeng-Esolang"
+     target="_blank" rel="noopener" aria-label="GitHub 仓库 · Six-Fifteenths/XFeng-Esolang"
+     title="GitHub 仓库 · Six-Fifteenths/XFeng-Esolang">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+  </a>
 </header>
 
 <main>
@@ -643,6 +660,7 @@ function readInputs(){
 }
 
 function buildMaps(data){
+  moving = false; moveCb = null;   // 取消进行中的 rAF 移动动画（重建地图）
   const area = document.getElementById('mapsArea');
   area.innerHTML='';
   for(const n in mapEls) delete mapEls[n];
@@ -681,7 +699,7 @@ function buildMaps(data){
   }
 }
 
-function placeMarker(mapName, x, y, animate){
+function placeMarker(mapName, x, y, animate, fadeIn){
   const e = mapEls[mapName];
   for(const n in mapEls) mapEls[n].card.classList.toggle('active', n===mapName);
   if(!teleportAnim){   // 传送动画期间完全锁定 marker 与当前格高亮（位置/重建/类/cur 都不动），
@@ -699,13 +717,14 @@ function placeMarker(mapName, x, y, animate){
     const rw = marker.querySelector('.runwrap');
     // 🏃 默认朝左：翻转跟随水平朝向 h（而非实际运动方向），垂直运动时也保持 h 决定的朝向
     if(rw) rw.style.transform = (vm.h > 0) ? 'scaleX(-1)' : 'scaleX(1)';
-    marker.style.transition = dur>0 ? `left ${dur}ms linear, top ${dur}ms linear` : 'none';
-    marker.style.left = (x*CELL + CELL/2)+'px';
-    marker.style.top  = (y*CELL + CELL/2)+'px';
-    for(const n in mapEls)
-      for(const r of mapEls[n].cells)
-        for(const d of r) d.classList.remove('cur');
-    e.cells[y][x].classList.add('cur');
+    // 高亮：运动开始当前高亮淡出（speed ms），运动中不强调格子；
+    // 到达是否淡入：fadeIn 显式指定，或默认“角色停下（非连续运行）”时才淡入
+    document.documentElement.style.setProperty('--cur-dur', speed()+'ms');
+    curFadeOut();
+    moveMarkerTo(x, y, dur, ()=>{
+      const wantIn = (fadeIn === undefined) ? (!running && !pendingStep) : fadeIn;
+      if(wantIn) curSet(x, y, e);
+    });
   }
 }
 
@@ -797,6 +816,68 @@ function markerNormal(){
   marker.classList.remove('out','in','tp');
 }
 
+// 当前格高亮：移动开始时旧格淡出、到达新格淡入（时长均 = speed ms），与小人脚步同步；
+// 效果类似小人进出传送格：高亮不再“咔哒”跳格，而是柔和地换位
+// 当前格高亮：运动过程中不显示高亮（角色在跑，不强调脚下格子）；
+// 只有角色停下（到达目标格/静止）时才淡入高亮，时长 = speed ms
+function clearCur(){
+  for(const n in mapEls)
+    for(const r of mapEls[n].cells)
+      for(const d of r){ d.classList.remove('cur'); d.classList.remove('cur-out'); }
+}
+// 运动开始：当前高亮淡出（时长 = speed ms），角色跑动时脚下不强调格子
+function curFadeOut(){
+  const c = document.querySelector('.cell.cur');
+  if(!c) return;
+  c.classList.remove('cur');
+  c.classList.add('cur-out');
+  const d = speed();
+  setTimeout(()=>{ c.classList.remove('cur-out'); }, d + 40);   // 淡出播完清理残留类
+}
+function curSet(x, y, e){
+  clearCur();
+  e.cells[y][x].classList.add('cur');   // 到达（角色不动）→ 高亮淡入
+}
+
+/* ===== 移动动画：requestAnimationFrame 逐帧插值（替代 CSS transition + setTimeout 双轨） =====
+ * 每格滑动由 rAF 驱动，动画完整播完（moving=false）后才由 waitMove 回调触发下一步，
+ * 从而消除 CSS transition 与 setTimeout 微不同步导致的滑动截断、停顿与抖动。 */
+let moving = false, moveCb = null;
+let pendingStep = false;   // 单步等待动画落定期间：到达不淡入，避免“淡入→淡出→淡入”闪两次
+function moveMarkerTo(x, y, dur, onArrive){
+  const tx = x*CELL + CELL/2, ty = y*CELL + CELL/2;
+  if(!marker) return;
+  if(dur <= 0){   // 瞬时放置（传送落点 / 初始化 / 重置）
+    marker.style.left = tx+'px';
+    marker.style.top  = ty+'px';
+    if(onArrive) onArrive();
+    return;
+  }
+  const fx = parseFloat(marker.style.left) || 0;
+  const fy = parseFloat(marker.style.top)  || 0;
+  const t0 = performance.now();
+  moving = true;
+  (function step(now){
+    if(!moving) return;   // 已被取消（重建/重置）
+    let t = (now - t0) / dur;
+    if(t >= 1) t = 1;
+    marker.style.left = (fx + (tx - fx) * t) + 'px';
+    marker.style.top  = (fy + (ty - fy) * t) + 'px';
+    if(t >= 1){
+      moving = false;
+      if(onArrive) onArrive();
+      const cb = moveCb; moveCb = null;
+      if(cb) cb();
+    } else {
+      requestAnimationFrame(step);
+    }
+  })(t0);
+}
+function waitMove(cb){
+  if(moving){ moveCb = cb; }
+  else cb();
+}
+
 /* ===== 执行阶段（1 tick 的后半段：移动 → 执行） ===== */
 // 人物在目标格上执行该格：函数格播放传送，停机播放上岸；普通格仅停留
 function execPhase(ev){
@@ -821,11 +902,11 @@ function playTeleport(srcMap, src, dstMap, dst){
   setTimeout(()=>{
     if(!mapEls[dstMap] || dstMap !== vm.P.name){ teleportAnim=false; markerNormal(); execBusy=false; return; }   // 程序已切换则放弃
     teleportAnim = false;
-    placeMarker(dstMap, dst.x, dst.y, false);   // 瞬移到目标格本身（函数 S / 调用点）
+    placeMarker(dstMap, dst.x, dst.y, false, true);   // 瞬移到目标格本身（函数 S / 调用点），强制淡入
     burstAt(dstMap, dst.x, dst.y, 'tp');
     markerIn();
     updateAll();   // 同步箭头/翻转方向（vm 当前格）
-    setTimeout(()=>{ markerNormal(); execBusy=false; if(running) scheduleNext(0); }, half);   // 出现动画播完，恢复连续运行
+    setTimeout(()=>{ markerNormal(); execBusy=false; if(running) tickOnce(); }, half);   // 出现动画播完，同宏任务内直接续跑（省一层 setTimeout）
   }, half);
 }
 // 停机：上岸庆祝 + marker 消失
@@ -894,10 +975,11 @@ function ensureVM(force){
   clearParseError();
   buildMaps(res.program);
   if(execTimer){ clearTimeout(execTimer); execTimer=null; }
+  clearTimeout(runTimer); runTimer=null;   // 重建时取消待调度的下一 tick（防止残留计时器在新 VM 上误触发）
   vm = new XFengVM(res.program, L, R, max);
   vm.srcSig = src; vm.builtL=L; vm.builtR=R; vm.builtMax=max;
   clearLog();
-  placeMarker(vm.P.name, vm.pos.x, vm.pos.y, false);
+  placeMarker(vm.P.name, vm.pos.x, vm.pos.y, false, true);   // 初始/重置：出生格淡入高亮
   updateAll();
   return true;
 }
@@ -936,18 +1018,20 @@ function setRunning(v){
   updateAll();
 }
 function tickOnce(){
-  if(running && (execTimer || execBusy)) return;   // 连续运行且上一格的执行阶段/传送动画未完成
+  if(running && (execTimer || execBusy || moving)) return;   // 上一格移动/执行动画未完成则等待
   if(!vm || vm.status!=='idle'){ pause(); return; }
   const ev = vm.step();              // 移动 + 执行（语义上仍是 1 tick）
-  applyEvent(ev);                    // 移动阶段：人物滑入目标格（duration = speed）
+  if(!ev){ pause(); return; }        // 出错/达上限：step 返回 null，停止并显示错误
+  applyEvent(ev);                    // 移动阶段：人物 rAF 插值滑入目标格（duration = speed）
   updateAll();
   const isTP = ev.type==='return' || (ev.type==='move' && ev.kind==='call');
   if(isTP || ev.type==='halt'){
-    // 执行阶段：传送/上岸动画，等移动（speed）播完再播放
-    execTimer = setTimeout(()=>{ execTimer=null; execPhase(ev); }, speed());
+    // 执行阶段：移动动画播完即播放传送/上岸（无需再等 speed，rAF 完成即已播完）
+    waitMove(()=>{ execTimer = setTimeout(()=>{ execTimer=null; execPhase(ev); }, 0); });
   } else if(running){
-    // 普通格：执行阶段不消耗时间，直接调度下一 tick（移动 speed）
-    scheduleNext(speed());
+    // 普通格：移动动画播完由动画完成回调直接驱动下一 tick（同帧无缝衔接，
+    // 不再经 setTimeout 宏任务，消除 tick 之间可能出现的微小停顿）
+    waitMove(()=>{ if(running) tickOnce(); });
   }
   if(vm.status!=='idle') pause();
 }
@@ -965,7 +1049,28 @@ function pause(){
   clearTimeout(runTimer);
   if(running) setRunning(false);
 }
-function stepOnce(){ pause(); if(!ensureVM(false)) return; lockInputs(true); tickOnce(); }
+function stepOnce(){
+  pause();   // 停止自动运行
+  // 若当前有移动/传送/执行动画进行中，等它落定（marker 与 VM 状态对齐）再单步，
+  // 避免在动画中途插队造成“回退”或“一次跳两格”；
+  // 等待落定期间不淡入高亮（pendingStep），避免“淡入→淡出→淡入”闪两次
+  if(moving || execTimer || execBusy || teleportAnim){
+    pendingStep = true;
+    waitAnimDone(()=>{ pendingStep = false; stepOnceNow(); });
+    return;
+  }
+  stepOnceNow();
+}
+function stepOnceNow(){
+  if(!ensureVM(false)) return; lockInputs(true); tickOnce();
+}
+function waitAnimDone(cb){
+  const check = ()=>{
+    if(moving || execTimer || execBusy || teleportAnim){ setTimeout(check, 30); return; }
+    cb();
+  };
+  setTimeout(check, 30);
+}
 function reset(){
   pause();
   lockInputs(false);
@@ -988,6 +1093,7 @@ document.getElementById('fileInput').addEventListener('change', ()=>{
   document.getElementById('fileInput').value='';
 });
 document.getElementById('exampleSelect').addEventListener('change', ()=>{
+  pause();   // 切换示例时先停止运行，避免旧动画/计时器与新 VM 竞态
   const v = document.getElementById('exampleSelect').value;
   if(v && EXAMPLES[v]){ editor.value = EXAMPLES[v]; liveParse(); ensureVM(true); }
 });
