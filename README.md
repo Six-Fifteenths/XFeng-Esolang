@@ -43,16 +43,16 @@
 
 ```bash
 # 运行程序，打印最终 L
-python -m xfeng examples/fib.xfeng -l 6        # → 8
-python -m xfeng examples/nth-prime.xfeng -l 10  # → 29
+python -m xfeng examples/fib.xfeng -l 6             # → 8
+python -m xfeng examples/nth-prime.xfeng -l 10      # → 29
+python -m xfeng examples/ackermann.xfeng -l 2 -r 2  # → 7
+python -m xfeng examples/module.xfeng -l 3 -r 3     # → 6
+python -m xfeng examples/forty-two.xfeng            # → 42
 
 # 逐步追踪 / 只校验
-python -m xfeng examples/gate-zero.xfeng --trace
-python -m xfeng examples/hchange.xfeng --check
-
-# 指定初始 L/R 与调试上限
-python -m xfeng examples/min.xfeng -l 42
-python -m xfeng examples/recursion.xfeng -l 0 -t 1000   # 无限递归 → MaxTicksExceeded
+python -m xfeng examples/fall-ladder.xfeng --trace
+python -m xfeng examples/turnaround.xfeng --check
+python -m xfeng examples/hello-world.xfeng --check  # 只能校验：无法运行（~2^103 tick）
 ```
 
 （可选）安装为命令行工具：
@@ -67,7 +67,7 @@ xfeng examples/fib.xfeng -l 6
 仓库自带 **`ide.html`**——一个完全自包含的网页 IDE（内嵌 JS 解析器 + 解释器 + 编辑器），
 无需 Python、无需构建，**双击打开即可使用**，也可上传到任意静态托管：
 
-- **📂 打开 / 拖拽** `.xfeng` 文件，或从内置示例下拉切换（min / gate / recursion / fib / **nth-prime**…）；
+- **📂 打开 / 拖拽** `.xfeng` 文件，或从内置示例下拉切换（fall-ladder / turnaround / module / fib / nth-prime / ackermann / hello-world / forty-two…）；
 - **在线编辑**，边写边实时语法校验、报错定位；
 - **解析 → 校验 → 运行**：逐格渲染所有函数地图，张雪峰 🏃 逐格奔跑动画（函数调用传送特效、停机「成功上岸」庆祝），L/R/h/tick/调用栈实时面板；
 - 单步 / 运行 / 暂停 / 重置、速度控制、执行日志。
@@ -76,22 +76,16 @@ xfeng examples/fib.xfeng -l 6
 
 ## 示例程序
 
-| 文件                  | 说明                                          | 结果                          |
-| --------------------- | --------------------------------------------- | ----------------------------- |
-| `min.xfeng`         | 最小程序（doc §41）                          | 输出`L_in`                  |
-| `resource.xfeng`    | 资源程序（doc §42）                          | `1`                         |
-| `counter.xfeng`     | 连续`(`（巧乐兹 +4）                        | `4`                         |
-| `direction.xfeng`   | 方向程序（doc §43）                          | `0`                         |
-| `function.xfeng`    | 函数程序（doc §44）                          | `1`                         |
-| `hchange.xfeng`     | 函数改 h（doc §45）                          | `BoundaryError`（向左越界） |
-| `gate.xfeng`        | `?` 门，L≠0 通过                           | `1`                         |
-| `gate-zero.xfeng`   | `?` 门，L=0 下沉                            | `0`                         |
-| `fall.xfeng`        | 自由落体三段                                  | `0`                         |
-| `fall-ladder.xfeng` | 下沉 +`^` 攀升                              | `0`                         |
-| `turnaround.xfeng`  | `<` 转向 + 落体                             | `0`                         |
-| `recursion.xfeng`   | 递归递减至 0                                  | `0`（L=3 时，深度 3）       |
-| `fib.xfeng`         | **斐波那契**：(n,0) → (F_n,0)          | `F_n`（如 n=6 → 8）        |
-| `nth-prime.xfeng`   | **第 n 个质数**：(n,0) → (p_n,0)，n≥1 | `p_n`（如 n=100 → 541）    |
+| 类别        | 文件                       | 说明                                                  | 结果                              |
+| ----------- | -------------------------- | ----------------------------------------------------- | --------------------------------- |
+| 功能演示    | `fall-ladder.xfeng`      | 落体 + `^` 爬梯：二维垂直运动                        | `0`                               |
+| 功能演示    | `turnaround.xfeng`       | `<` 转向 + 落体：h 水平朝向与二维回路                | `0`                               |
+| 功能演示    | `module.xfeng`           | 可复用累加模块 @C：(L,R)→(L+R,0)                     | `L+R`（如 (3,3)→6）               |
+| 能力测试    | `fib.xfeng`              | **斐波那契**：(n,0)→(F_n,0)                          | `F_n`（如 n=6→8）                 |
+| 能力测试    | `nth-prime.xfeng`        | **第 n 个质数**：(n,0)→(p_n,0)，n≥1                  | `p_n`（如 n=100→541）             |
+| 能力测试    | `ackermann.xfeng`        | **阿克曼函数**：(m,n)→A(m,n)，测试 (0,0)–(3,6)       | `A(m,n)`（如 (3,2)→29）           |
+| Hello World | `hello-world.xfeng`      | "Hello, World!" 8 位 ASCII 拼接；**无法运行**        | `5735816763073854918203775149089` |
+| 趣味挑战    | `forty-two.xfeng`        | (0,0)→42，**当前最短 24/27 字符**（23 是否可能仍开放） | `42`                              |
 
 `fib.xfeng` 是 doc §46 的斐波那契程序，由 4 个函数组成：`main` 依次调用 `M`（把 n 从 L 搬到 R）、
 `F`（递归树遍历，每个 `fib(1)` 叶子给 L+1）、`C`（清零 R）。`F` 的不变量：调用时 `R=level`，
@@ -101,6 +95,23 @@ xfeng examples/fib.xfeng -l 6
 调用 `X` 寻找下一个候选数；`D` 用可逆递归减法判断整除（`B` 已并入 `D`，`a` 已并入 `A`），
 `K` 只有在最小除数等于候选数本身时才判为质数。非注释部分 41 行，最长一行 14 字符，9 个函数。
 标准逐步解释器适合观察较小输入；单元测试对 `n=1..15` 做了精确质数回归覆盖。
+
+`ackermann.xfeng` 是阿克曼函数 $A(m,n)$。`@A` 保持不变量「进入 L=m,R=n → 返回 L=m,R=A(m,n)」：
+`?`/`!` 判零分支（$A(0,n)=n{+}1$、$A(m,0)=A(m{-}1,1)$），主路径 `] A [ A (` 递归
+$A(m{-}1,A(m,n{-}1))$；main 再经 `@C`/`@D` 把结果从 R 复制回 L。单元测试对 (0,0)–(3,6)
+共 28 个点回归（$(3,6)=509$ 需几十万 tick，勿在 IDE 里跑）。
+
+`hello-world.xfeng` 把 "Hello, World!" 13 个字符的扩展 8 位 ASCII 拼成一个大整数（≈2^103），
+因此**无法实际运行**（tick 数远超 2^80）。构造上每个 bit 一次函数调用：`@A`=2L+1、`@B`=2L，
+`@D` 递归实现 ×2，`@Z` 先清 L。验证方式：同结构 2 字符 "Hi" 实跑 = 18537，
+全量用算术模拟核对期望值并确认超时（见 `TestHelloWorld`）。
+
+`module.xfeng` 演示 XFeng 的基本积木「累加/复制」模块 @C（L←L+R, R→0），可被任意程序直接调用；
+`fib`/`ackermann` 里都有同族变体。
+
+`forty-two.xfeng` 是代码压缩挑战：输入 (0,0) 输出 42，把 42 拆成 7 次调用 +6 的函数，
+当前最短 24（不含换行）/ 27（含换行）字符。回头复用（switchback `ES(((<`）可进一步
+压缩函数体，但 9,153,752 个候选的穷举未找到 <24 的解，**23 是否可能仍是开放问题**。
 
 ---
 

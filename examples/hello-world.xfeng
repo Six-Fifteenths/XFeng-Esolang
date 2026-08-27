@@ -1,0 +1,19 @@
+# Hello, World!：输入任意 (L,R)，输出 "Hello, World!" 各字符扩展 8 位 ASCII
+# 拼接成的十进制整数 = 5735816763073854918203775149089（103 bit）。
+# 该程序无法实际运行：@D 的递归深度与 L 同阶，最终深度 ~2^103，tick 数远大于 2^80。
+# 构造（自高位向低位移位拼接）：每个 bit 一次函数调用
+#   @A = 2L+1（bit=1）、@B = 2L（bit=0）；@D 递归实现 L<-2L；@Z 先清 L（输入任意）。
+# 验证：小规模 "Hi"（同结构 2 字符）= 18537 实跑通过；全量用算术模拟核对期望值，
+#       且 max_ticks 上限确认无法终止。详见 tests/test_interpreter.py TestHelloWorld。
+@main
+SZABBABBBBAABBABABAABAABBBAABAABBBAABAAAABBABAABBBBABBBBBBABABAAABAABAAAABAAABBABBAABAABBBAABBABBBBABBBBAE
+@D
+S?[D((E
+......^
+@Z
+S?[ZE
+....^
+@A
+SD(E
+@B
+SDE

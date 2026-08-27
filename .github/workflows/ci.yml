@@ -18,5 +18,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: 单元测试
         run: python -m unittest discover -s tests
-      - name: 解释器冒烟测试（斐波那契）
-        run: python -m xfeng examples/fib.xfeng -l 10
+      - name: 解释器冒烟测试
+        run: |
+          python -m xfeng examples/fib.xfeng -l 10
+          python -m xfeng examples/nth-prime.xfeng -l 10
+          python -m xfeng examples/ackermann.xfeng -l 2 -r 2
+          python -m xfeng examples/module.xfeng -l 3 -r 3
+          python -m xfeng examples/forty-two.xfeng
+          python -m xfeng examples/fall-ladder.xfeng --check
+          python -m xfeng examples/turnaround.xfeng --check
+          python -m xfeng examples/hello-world.xfeng --check

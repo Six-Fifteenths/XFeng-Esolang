@@ -226,18 +226,12 @@ function parseSource(text){
 }
 /* ============ 内置示例 ============ */
 const EXAMPLES={
-'gate-zero · L门归零':'@main\nS?.\n.E.',
-'min · 最小程序':'@main\nSE',
-'resource · 资源':'@main\nS(E',
-'counter · 计数器':'@main\nS((((E',
-'direction · 方向':'@main\nS>E',
-'gate · L门非零':'@main\nS(?E',
-'fall · 三段下落':'@main\nS .\n . \n  E',
+'module · 可复用模块':'# 可复用模块 @C：输入 (L,R)，输出 L+R（R 清零）。\n# 不变量：进入 (L,R)=(a,b) -> 返回 (L,R)=(a+b, 0)。\n# 原理：! 判 R——R=0 下落返回；否则 ( L+1 且 ] R-1 后递归 C，共递归 b 层。\n# 这个"累加/复制"子程序是 XFeng 的基本积木：fib / ackermann 里都有同族变体。\n# 任意程序都可以像 main 这样直接调用它，把 (L,R) 换成自己的值。\n@main\nS...C...E\n@C\nS!(]C.E\n......^',
 'fall-ladder · 下落+爬梯':'@main\nS...E\n ..^ ',
 'turnaround · 转向':'@main\nS.. \n ..<\nE...',
-'function · 函数':'@main\nSFE\n@F\nS(E',
-'hchange · 函数改h(越界)':'@main\nSFE\n@F\nS<E',
-'recursion · 递归递减':'@main\nS...F..E\n@F\nS[?F.E\n  ...^',
+'ackermann · 阿克曼':'# 阿克曼函数：输入 (L,R)=(m,n)，输出 L=A(m,n)。\n# 定义：A(0,n)=n+1；A(m,0)=A(m-1,1)；A(m,n)=A(m-1,A(m,n-1))（m,n>0）。\n# 参考值：A(0,0)=1, A(1,1)=3, A(2,2)=7, A(3,2)=29, A(3,3)=61, A(3,6)=509。\n#\n# @A 不变量：进入 L=m,R=n -> 返回 L=m,R=A(m,n)（L 恢复进入值，结果在 R）。\n#   主路径（m>0,n>0）：? ! ] A [ A ( E\n#     ? 判 L，! 判 R；] R-- 后 A(m,n-1)，[ L-- 后 A(m-1,·)，( L++ 恢复。\n#   L==0 分支：? 下落 -> ) R++ -> 经行1/行2/行3 绕行返回（A(0,n)=n+1）。\n#   R==0 分支：! 下落 -> [ L-- -> ) R++=1 -> A(m-1,1) -> ( L++ -> 返回。\n# @C：L<-R, R->0（丢弃原 L）：先递归清 L，L==0 时落到行1调 @D 复制。\n# @D：L+=R, R->0（要求进入时 L=0）：每级 ( L++ 且 ] R--，递归到 R=0。\n@main\nS...A...C...E\n@A\nS?...!]A[A(E\n.). . .....^\n... .[)A(..^\n...........^\n@C\nS?[C..E\n.....D^\n@D\nS!(]D.E\n......^',
+'hello-world · Hello World':'# Hello, World!：输入任意 (L,R)，输出 "Hello, World!" 各字符扩展 8 位 ASCII\n# 拼接成的十进制整数 = 5735816763073854918203775149089（103 bit）。\n# 该程序无法实际运行：@D 的递归深度与 L 同阶，最终深度 ~2^103，tick 数远大于 2^80。\n# 构造（自高位向低位移位拼接）：每个 bit 一次函数调用\n#   @A = 2L+1（bit=1）、@B = 2L（bit=0）；@D 递归实现 L<-2L；@Z 先清 L（输入任意）。\n# 验证：小规模 "Hi"（同结构 2 字符）= 18537 实跑通过；全量用算术模拟核对期望值，\n#       且 max_ticks 上限确认无法终止。详见 tests/test_interpreter.py TestHelloWorld。\n@main\nSZABBABBBBAABBABABAABAABBBAABAABBBAABAAAABBABAABBBBABBBBBBABABAAABAABAAAABAAABBABBAABAABBBAABBABBBBABBBBAE\n@D\nS?[D((E\n......^\n@Z\nS?[ZE\n....^\n@A\nSD(E\n@B\nSDE',
+'forty-two · 输出42':'@main\nSFFFFFFFE\n@F\nS((((((E',
 'fib · 斐波那契':'@main\nS...M...F...C...E\n@M\nS?[)M.E\n......^\n@F\nS!] ...F]F))E\n. ..!.^.....^\n. ...().....^\n.......^.....\n@C\nS!]C.E\n.....^',
 'nth-prime · 第n个质数':'# 第 n 个质数：(n,0) -> (p_n,0)，定义域 n>=1\n# 非注释源码 41 行；最长一行 14 个字符。\n# 算法在运行时依次枚举候选数和除数，不含素数表。\n@main\nS.F.E\n# F 用递归深度保存 n；基例把候选数置为 1。\n@F\nS?[F.XE\n.....(^\n# X 找到严格大于 L 的第一个质数。\n@X\nS()) .......\n.. )D ......\n..>.^>... ..\n........ K .\n........ .CE\n........>CX^\n# C 在不改变 L 的情况下清零 R。\n@C\nS!]C.E\n.....^\n# K 区分“除数等于候选数”和“真因子”。\n@K\nSG?A... \n..A...E<\n# D 可逆地判断 R 是否整除 L，且恢复两个寄存器。\n@D\nS?.... ....\n.  ...G ...\n.  ...ADA .\n. >... ...<\n. ........ \n.>...E....<\n@G\nS[]. ...\n. ()H) .\n.>... <.\n... ... \n...>.E.<\n@H\n.S!? ..\n.. <G .\n. ...E<\n. ....^\n.>....^\n# A 双向恢复：h=+1 走右半，h=-1 走左半经上方绕道，汇合到共享 E；执行 L+=R 并恢复 R。\n@A\n>............ \n^)(A!]S]!A()E<\n^)(.......()^.'};
 const DEFAULT_SOURCE=EXAMPLES['nth-prime · 第n个质数'];

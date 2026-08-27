@@ -307,5 +307,139 @@ class TestNthPrime(unittest.TestCase):
         self.assertLessEqual(max(map(len, code)), 14)
 
 
+class TestAckermann(unittest.TestCase):
+    """examples/ackermann.xfeng：A(m,n)，覆盖 (0,0)–(3,6)。"""
+
+    @classmethod
+    def setUpClass(cls):
+        src = (Path(__file__).resolve().parent.parent /
+               "examples" / "ackermann.xfeng")
+        cls.prog = parse_source(src.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _ack(m, n):
+        if m == 0:
+            return n + 1
+        if n == 0:
+            return TestAckermann._ack(m - 1, 1)
+        return TestAckermann._ack(m - 1, TestAckermann._ack(m, n - 1))
+
+    def test_all_points_0_to_3_6(self):
+        # 28 个点：m∈[0,3], n∈[0,6]。A(3,6)=509 已需几十万 tick，勿再放大。
+        for m in range(4):
+            for n in range(7):
+                self.assertEqual(run(self.prog, L_in=m, R_in=n),
+                                 self._ack(m, n), f"A({m},{n})")
+
+    def test_final_state(self):
+        from xfeng.interpreter import State, step
+        for (m, n), exp in [((0, 0), 1), ((1, 1), 3), ((2, 2), 7), ((3, 2), 29)]:
+            st = State(self.prog, L_in=m, R_in=n)
+            while True:
+                ev = step(st, self.prog)
+                if ev["action"] == "halt":
+                    break
+            self.assertEqual((st.L, st.R), (exp, 0))
+
+
+class TestHelloWorld(unittest.TestCase):
+    """examples/hello-world.xfeng：8 位 ASCII 拼接；程序本身无法运行。"""
+
+    TEXT = "Hello, World!"
+    EXPECTED = int.from_bytes(TEXT.encode(), "big")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.path = (Path(__file__).resolve().parent.parent /
+                    "examples" / "hello-world.xfeng")
+        cls.src = cls.path.read_text(encoding="utf-8")
+        cls.prog = parse_source(cls.src)
+
+    @staticmethod
+    def _simulate(row):
+        # 按 @A=2L+1、@B=2L、@Z=L←0 在 main 行上做算术模拟（不真正执行）
+        L = 0
+        for ch in row[1:-1]:
+            if ch == "Z":
+                L = 0
+            elif ch == "A":
+                L = 2 * L + 1
+            elif ch == "B":
+                L = 2 * L
+        return L
+
+    def test_main_row_builds_expected_number(self):
+        self.assertEqual(self._simulate(self.prog.main.rows[0]), self.EXPECTED)
+
+    def test_expected_is_103bit(self):
+        self.assertGreaterEqual(self.EXPECTED.bit_length(), 100)
+
+    def test_cannot_halt(self):
+        with self.assertRaises(MaxTicksExceeded):
+            run(self.prog, L_in=0, R_in=0, max_ticks=5000)
+
+    def test_small_scale_hi_runs(self):
+        # 同结构 2 字符版本：@D/@Z/@A/@B 原样复用，只换 main 行 → 实跑 = 0x4869
+        def main_row(text):
+            seq = []
+            for ch in text:
+                c = ord(ch)
+                for i in range(7, -1, -1):
+                    seq.append("A" if (c >> i) & 1 else "B")
+            fo = next(i for i in range(8) if (ord(text[0]) >> (7 - i)) & 1)
+            return "S" + "Z" + "".join(seq[fo:]) + "E"
+
+        lines = self.src.splitlines()
+        funcs = "\n".join(lines[lines.index("@D"):])
+        hi_src = "@main\n" + main_row("Hi") + "\n" + funcs
+        self.assertEqual(run(parse_source(hi_src), L_in=0, R_in=0),
+                         int.from_bytes(b"Hi", "big"))
+
+
+class TestModule(unittest.TestCase):
+    """examples/module.xfeng：可复用累加模块 (L,R) -> (L+R, 0)。"""
+
+    @classmethod
+    def setUpClass(cls):
+        src = (Path(__file__).resolve().parent.parent /
+               "examples" / "module.xfeng")
+        cls.prog = parse_source(src.read_text(encoding="utf-8"))
+
+    def test_add_values(self):
+        for L, R, exp in [(0, 0, 0), (3, 3, 6), (5, 0, 5), (2, 7, 9), (0, 4, 4)]:
+            self.assertEqual(run(self.prog, L_in=L, R_in=R), exp, f"({L},{R})")
+
+    def test_right_register_cleared(self):
+        from xfeng.interpreter import State, step
+        st = State(self.prog, L_in=3, R_in=3)
+        while True:
+            ev = step(st, self.prog)
+            if ev["action"] == "halt":
+                break
+        self.assertEqual((st.L, st.R), (6, 0))
+
+
+class TestFortyTwo(unittest.TestCase):
+    """examples/forty-two.xfeng：(0,0) -> 42，24/27 字符。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.path = (Path(__file__).resolve().parent.parent /
+                    "examples" / "forty-two.xfeng")
+        cls.src = cls.path.read_text(encoding="utf-8")
+        cls.prog = parse_source(cls.src)
+
+    def test_output_42(self):
+        # 契约是「输入 (0,0) 输出 42」：程序刻意不清理输入（省字符），
+        # 因此非零 L 输入会得到 L+42，而不是 42。
+        self.assertEqual(run(self.prog, L_in=0, R_in=0), 42)
+        self.assertEqual(run(self.prog, L_in=7, R_in=3), 49)
+
+    def test_size_contract(self):
+        s = self.src.rstrip("\n")
+        self.assertEqual(sum(len(l) for l in s.splitlines()), 24)  # 不含换行
+        self.assertEqual(len(s), 27)  # 含换行（无末尾换行）
+
+
 if __name__ == "__main__":
     unittest.main()
