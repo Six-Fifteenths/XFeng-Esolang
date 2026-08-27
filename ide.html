@@ -19,6 +19,7 @@ header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:lin
 .status.halted{background:#2e2a12;color:var(--ok);border-color:#544a1a}
 .status.error{background:#3a1c16;color:var(--err);border-color:#5c2a1e}
 .github-link{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;color:var(--dim);flex:none;text-decoration:none;transition:color .15s}.github-link:hover{color:var(--accent)}.github-link svg{width:22px;height:22px;fill:currentColor;display:block}
+.help-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;background:transparent;color:var(--dim);flex:none;cursor:pointer;font-size:16px;font-weight:800;border-radius:50%;line-height:1;transition:color .15s,background .15s}.help-btn:hover{color:var(--accent);background:rgba(255,255,255,.08)}
 /* ===== 布局 ===== */
 main{display:flex;gap:16px;padding:16px 16px 4px;align-items:flex-start}
 #left{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
@@ -69,18 +70,16 @@ body[data-skin="emoji"] .cell.fn .fnlay{position:relative;width:100%;height:100%
 /* ===== 教程 ===== */
 .tut-overlay{position:fixed;inset:0;background:rgba(18,11,6,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:100;padding:18px}
 .tut-modal{position:relative;width:660px;max-width:100%;max-height:92vh;overflow:auto;background:linear-gradient(180deg,#fdf6e7,#f6ead2);color:#3a2a1a;border-radius:18px;border:1px solid rgba(184,232,37,.55);box-shadow:0 26px 80px rgba(0,0,0,.6);padding:26px 30px 22px}
-.tut-x{position:absolute;top:12px;right:14px;border:none;background:transparent;color:#8a6b45;font-size:18px;cursor:pointer;padding:6px;line-height:1}.tut-x:hover{color:#3a2a1a}
 .tut-kicker{font-size:11px;font-weight:700;letter-spacing:2px;color:#8fce1a;text-transform:uppercase}.tut-head h2{margin:6px 0;font-size:26px;color:#2b1f17}.tut-sub{margin:0 0 16px;color:#6b5238;font-size:13.5px;line-height:1.6}
 .tut-steps{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tut-step{display:flex;gap:11px;background:#fffaf0;border:1px solid #e7d6b8;border-radius:12px;padding:11px 12px}.tut-n{flex:none;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#c6f04a,#8fce1a);color:#22290a;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}.tut-b{font-size:12.5px;line-height:1.65;color:#4a3a28}.tut-b b{color:#2b1f17}
-.tut-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap}.tut-skip{font-size:12.5px;color:#6b5238;display:flex;align-items:center;gap:6px;cursor:pointer}.tut-skip input{accent-color:#8fce1a;width:15px;height:15px}
-.tut-foot .btn-ghost{background:transparent;border:1px solid #c9b084;color:#6b5238;border-radius:9px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600}.tut-foot .btn-ghost:hover{background:#f1e2c4}.tut-foot .btn-primary{background:linear-gradient(135deg,#c6f04a,#8fce1a);border:none;color:#22290a;border-radius:9px;padding:9px 20px;font-size:13.5px;cursor:pointer;font-weight:800}
+.tut-foot{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:18px}
+.tut-foot .btn-primary{background:linear-gradient(135deg,#c6f04a,#8fce1a);border:none;color:#22290a;border-radius:9px;padding:9px 24px;font-size:13.5px;cursor:pointer;font-weight:800}.tut-foot .btn-primary:hover{filter:brightness(1.06)}
 @media(max-width:720px){.tut-steps{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div id="tutOverlay" class="tut-overlay">
+<div id="tutOverlay" class="tut-overlay hidden">
   <div class="tut-modal" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
-    <button id="tutClose" class="tut-x" type="button" aria-label="关闭教程">✕</button>
     <div class="tut-head"><div class="tut-kicker">XFeng 1.0 · 张雪峰跑步</div><h2 id="tutTitle">欢迎来练！</h2><p class="tut-sub">这是一门「张雪峰跑步」式的二维空间控制流 Esolang：<br>把地图当跑道，张老师逐格奔跑、加减口袋里的巧乐兹与雪碧，跑到终点输出答案。</p></div>
     <div class="tut-steps">
       <div class="tut-step"><div class="tut-n">1</div><div class="tut-b"><b>一个 tick = 一步</b><br>当前格决定方向 → 移动一格 → 执行到达格。每张图以 <b class="c-s">S</b> 起步，<b class="c-e">E</b> 收尾。</div></div>
@@ -88,13 +87,14 @@ body[data-skin="emoji"] .cell.fn .fnlay{position:relative;width:100%;height:100%
       <div class="tut-step"><div class="tut-n">3</div><div class="tut-b"><b>门会查口袋</b><br><b class="c-q">?</b> 查 L：L=0 → 下沉，否则直行；<b class="c-bang">!</b> 查 R 同理。空格 ␣ 自由落体，<b class="c-up">^</b> 爬梯。</div></div>
       <div class="tut-step"><div class="tut-n">4</div><div class="tut-b"><b>函数 = 子地图</b><br>地图上的字母是调用点：进入同名函数，从它的 <b class="c-s">S</b> 跑到 <b class="c-e">E</b> 自动返回。</div></div>
     </div>
-    <div class="tut-foot"><label class="tut-skip"><input type="checkbox" id="tutNoMore"> 下次不再自动弹出</label><div><button id="tutLater" type="button" class="btn-ghost">稍后再说</button><button id="tutGo" type="button" class="btn-primary">🚀 开始练起来</button></div></div>
+    <div class="tut-foot"><button id="tutGo" type="button" class="btn-primary">🚀 开始练起来</button></div>
   </div>
 </div>
 <header>
   <div class="brand">XFeng<span class="v">1.0 · 张雪峰跑步 · 练起来</span></div>
   <div id="progTitle">XFeng IDE</div>
   <div id="statusBar" class="status ready">就绪</div>
+  <button id="tutHelp" class="help-btn" type="button" aria-label="教程 · 怎么玩" title="教程 · 怎么玩">?</button>
   <a class="github-link" href="https://github.com/Six-Fifteenths/XFeng-Esolang" target="_blank" rel="noopener" aria-label="GitHub 仓库 · Six-Fifteenths/XFeng-Esolang" title="GitHub 仓库 · Six-Fifteenths/XFeng-Esolang"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
 </header>
 <main>
@@ -500,13 +500,9 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='r'||e.key==='R')reset();
 });
 /* ============ 教程 ============ */
-const showTutorial=()=>$('tutOverlay').classList.remove('hidden'),hideTutorial=()=>$('tutOverlay').classList.add('hidden');
-$('tutClose').addEventListener('click',hideTutorial);
-$('tutLater').addEventListener('click',hideTutorial);
+const showTutorial=()=>{pause();$('tutOverlay').classList.remove('hidden');},hideTutorial=()=>$('tutOverlay').classList.add('hidden');
+$('tutHelp').addEventListener('click',showTutorial);
 $('tutGo').addEventListener('click',()=>{hideTutorial();editor.value=DEFAULT_SOURCE;$('exampleSelect').selectedIndex=0;liveParse();reset();});
-$('tutNoMore').addEventListener('change',e=>{try{localStorage.setItem('xfeng.tut.done',e.target.checked?'1':'');}catch(_){}});
-let tutDone=false;try{tutDone=localStorage.getItem('xfeng.tut.done')==='1';}catch(_){}
-if(tutDone)hideTutorial();
 /* ============ 初始化 ============ */
 $('progTitle').textContent=TITLE;
 (function(){const sel=$('exampleSelect');const first=document.createElement('option');first.value='';first.textContent='— 内置示例 —';sel.appendChild(first);for(const k in EXAMPLES){const o=document.createElement('option');o.value=k;o.textContent=k;sel.appendChild(o);}})();
